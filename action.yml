@@ -120,7 +120,7 @@ runs:
         echo "Cloning pico-sdk version: ${{ inputs.pico-sdk-version }}"
         git clone --depth 1 --branch "${{ inputs.pico-sdk-version }}" https://github.com/raspberrypi/pico-sdk.git "$PICO_SDK_PATH"
         cd "$PICO_SDK_PATH"
-        git submodule update --init
+        git submodule update --init --recursive
         echo "PICO_SDK_PATH=$PICO_SDK_PATH" >> $GITHUB_ENV
         echo "pico-sdk-path=$PICO_SDK_PATH" >> $GITHUB_OUTPUT
 
