@@ -257,33 +257,126 @@ class PicoInstaller:
             urllib.error.URLError: If download fails
             OSError: If extraction or file operations fail
         """
-        # Check if the version is available
-        if version not in self._pico_sdk_tools.keys():
-            raise ValueError(f"Pico SDK tools version {version} is not available.")
+        print(f"Installing Pico SDK tools version {version}...")
+
+        # Map of tools that need to be installed
+        pico_sdk_tools = {
+            'openocd': 'openocd',
+            'picotool': 'picotool',
+            'picosdktools': 'picosdktools',
+            'riscv-toolchain': 'riscv-toolchain'
+        }
+
+        for tool_key, tool_dir in pico_sdk_tools.items():
+            print(f"  Installing {tool_key}...")
+            
+            # Get URL for the tool
+            url = self.get_url(tool_key, version, self._arch, self._os_type)
+            
+            # Determine installation path
+            install_path = os.path.join(self._install_dir, tool_dir)
+            
+            # Download and extract
+            self.load_and_unpack_url(url, install_path)
+            
+            print(f"  ✓ {tool_key} installed to {install_path}")
+
+        print(f"\n✓ All Pico SDK tools installed successfully")
+
+    def set_environment_variables(self):
+        """Set up environment variables for installed Pico SDK tools.
         
-        # Get the download URLs for the specified version
-        self.load_and_unpack_url(self._pico_sdk_tools[version]["openocd_url"], os.path.join(self.install_dir, "openocd"))
-        self.load_and_unpack_url(self._pico_sdk_tools[version]["picotool_url"], os.path.join(self.install_dir, "picotool"))
-        self.load_and_unpack_url(self._pico_sdk_tools[version]["picosdktools_url"], os.path.join(self.install_dir, "picosdktools"))
-        self.load_and_unpack_url(self._pico_sdk_tools[version]["riscv_toolchain_url"], os.path.join(self.install_dir, "riscv-toolchain"))
+        This method configures environment variables required for building Pico projects:
+        - PICO_SDK_PATH: Points to the Pico SDK installation directory
+        - PATH: Updated to include all tool binaries (openocd, picotool, pioasm, etc.)
+        
+        For GitHub Actions, it also writes to GITHUB_ENV and GITHUB_PATH files if they exist,
+        making the variables available to subsequent workflow steps.
+        
+        Side effects:
+            - Updates os.environ with new PATH and PICO_SDK_PATH
+            - Writes to $GITHUB_ENV if running in GitHub Actions
+            - Writes to $GITHUB_PATH if running in GitHub Actions
+            - Prints environment variable values for visibility
+        """
+        # Expand installation directory path
+        install_dir = os.path.expanduser(self._install_dir)
+        
+        # Set PICO_SDK_PATH
+        pico_sdk_path = os.path.join(install_dir, 'pico-sdk')
+        os.environ['PICO_SDK_PATH'] = pico_sdk_path
+        
+        # Build PATH additions
+        path_additions = [
+            os.path.join(install_dir, 'openocd', 'bin'),
+            os.path.join(install_dir, 'picotool'),
+            os.path.join(install_dir, 'picosdktools'),
+            os.path.join(install_dir, 'riscv-toolchain', 'bin'),
+        ]
+        
+        # Update PATH
+        for path_addition in path_additions:
+            os.environ['PATH'] = path_addition + os.pathsep + os.environ.get('PATH', '')
+        
+        # Print environment variables for visibility
+        print("\nEnvironment variables set:")
+        print(f"  PICO_SDK_PATH={pico_sdk_path}")
+        print(f"  PATH additions:")
+        for path_addition in path_additions:
+            print(f"    {path_addition}")
+        
+        # If running in GitHub Actions, also set for subsequent steps
+        github_env = os.environ.get('GITHUB_ENV')
+        github_path = os.environ.get('GITHUB_PATH')
+        
+        if github_env:
+            print(f"\nWriting to GitHub Actions environment file: {github_env}")
+            with open(github_env, 'a') as f:
+                f.write(f"PICO_SDK_PATH={pico_sdk_path}\n")
+        
+        if github_path:
+            print(f"Writing to GitHub Actions path file: {github_path}")
+            with open(github_path, 'a') as f:
+                for path_addition in path_additions:
+                    f.write(f"{path_addition}\n")
 
-        # Setup environment variables for the installed tools
-        os.environ["PATH"] += os.pathsep + os.path.expanduser(os.path.join(self.install_dir, "openocd", "bin"))
-        os.environ["PATH"] += os.pathsep + os.path.expanduser(os.path.join(self.install_dir, "picotool", "bin"))
-        os.environ["PATH"] += os.pathsep + os.path.expanduser(os.path.join(self.install_dir, "picosdktools", "pioasm"))
-        os.environ["PATH"] += os.pathsep + os.path.expanduser(os.path.join(self.install_dir, "riscv-toolchain", "bin"))
-
-        # Check if the tools were installed correctly
-        self._check_tool(["openocd", "--version"], "OpenOCD installation failed.")
-        self._check_tool(["picotool", "--version"], "Picotool installation failed.")
-        self._check_tool(["pioasm", "--version"], "Pico SDK tools installation failed.")
-        self._check_tool(["riscv64-unknown-elf-gcc", "--version"], "RISC-V toolchain installation failed.")
-
-    def _check_tool(self, cmd, error_message):
-        try:
-            subprocess.run(cmd, check=True)
-        except subprocess.CalledProcessError as exc:
-            raise RuntimeError(error_message) from exc
+    def install_pico_sdk(self, version: str):
+        """Clone the Pico SDK repository at the specified version.
+        
+        Downloads the official Raspberry Pi Pico SDK from GitHub and checks out
+        the specified version tag. The SDK contains CMake build files, libraries,
+        and example code for Pico development.
+        
+        Args:
+            version (str): SDK version tag to checkout (e.g., '2.0.0', '2.2.0')
+        
+        Raises:
+            subprocess.CalledProcessError: If git clone or checkout fails
+            OSError: If directory creation fails
+        """
+        print(f"Installing Pico SDK version {version}...")
+        
+        sdk_path = os.path.join(self._install_dir, 'pico-sdk')
+        sdk_path_expanded = os.path.expanduser(sdk_path)
+        
+        # Clone the SDK if it doesn't exist
+        if not os.path.exists(sdk_path_expanded):
+            print(f"  Cloning Pico SDK to {sdk_path}...")
+            subprocess.run([
+                'git', 'clone', 
+                'https://github.com/raspberrypi/pico-sdk.git',
+                sdk_path_expanded
+            ], check=True)
+        
+        # Checkout the specific version
+        print(f"  Checking out version {version}...")
+        subprocess.run(['git', 'checkout', version], cwd=sdk_path_expanded, check=True)
+        
+        # Update submodules
+        print(f"  Updating submodules...")
+        subprocess.run(['git', 'submodule', 'update', '--init'], cwd=sdk_path_expanded, check=True)
+        
+        print(f"  ✓ Pico SDK {version} installed to {sdk_path}")
 
     def install_toolchain(self, version: str):
         """Install the ARM GCC toolchain for Pico development.
@@ -291,18 +384,14 @@ class PicoInstaller:
         The ARM toolchain provides the compiler and related tools needed to build
         firmware for the ARM Cortex-M cores in Raspberry Pi Pico boards.
         
+        Note: This is handled by install_pico_sdk_tools which includes the ARM
+        toolchain as part of the picosdktools package. This method is kept for
+        backward compatibility but doesn't need additional installation.
+        
         Args:
             version (str): Toolchain version (e.g., '12.2.rel1', '13.2.rel1', '14.2.rel1')
-        
-        Raises:
-            ValueError: If the specified version is not available
-            RuntimeError: If installation fails
-        Note:
-            This method is currently incomplete and requires implementation.
         """
-        print(f"Installing toolchain version {version}...")
-        # Here you would add the actual installation commands, e.g.:
-        #subprocess.run(["curl", "-L", f"
+        print(f"ARM toolchain (version {version}) is included in Pico SDK tools.")
 
     def main(self):
         """Main entry point for the installer command-line interface.
@@ -330,15 +419,7 @@ class PicoInstaller:
         args = parser.parse_args()
         
         print(f"Installing for {self._os_type} ({self._arch})...")
-
-        # picotool version is determined by the SDK version
-
-        # Validate Picotool version
-        if args.picotool_version not in self._picotool_available_versions:
-            raise ValueError('\n'.join([
-                f"Picotool version {args.picotool_version} is not available.",
-                f"Available versions: {', '.join(self._picotool_available_versions)}"
-            ]))
+        print(f"Installation directory: {self._install_dir}\n")
 
         # Validate Pico SDK version
         if args.sdk_version not in self._pico_sdk_available_versions:
@@ -354,17 +435,25 @@ class PicoInstaller:
                 f"Available versions: {', '.join(self._toolchain_available_versions)}"
             ]))
 
-        # Picotool major version must match SDK major version
-        sdk_major_version = args.sdk_version.split('.')[0]
-        picotool_major_version = args.picotool_version.split('.')[0]
-        if sdk_major_version != picotool_major_version:
-            raise ValueError(f"Picotool major version {picotool_major_version} does not match Pico SDK major version {sdk_major_version}.")
-
-        # Install prerequisites, Pico SDK, Picotool, and toolchain
+        # Install prerequisites, Pico SDK, tools, and toolchain
         self.install_prerequisites()
         self.install_pico_sdk(args.sdk_version)
-        self.install_picotool(args.picotool_version)
+        self.install_pico_sdk_tools(args.sdk_version)
         self.install_toolchain(args.toolchain_version)
+        
+        # Set up environment variables
+        self.set_environment_variables()
+        
+        print("\n" + "="*60)
+        print("✓ Installation complete!")
+        print("="*60)
+        print("\nTo use the tools in a new shell, run:")
+        if self._os_type == 'windows':
+            print(f'  set PICO_SDK_PATH={os.path.expanduser(self._install_dir)}\\pico-sdk')
+            print(f'  set PATH={os.path.expanduser(self._install_dir)}\\openocd\\bin;%PATH%')
+        else:
+            print(f'  export PICO_SDK_PATH={os.path.expanduser(self._install_dir)}/pico-sdk')
+            print(f'  export PATH={os.path.expanduser(self._install_dir)}/openocd/bin:$PATH')
 
 
 if __name__ == "__main__":

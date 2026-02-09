@@ -10,15 +10,15 @@ inputs:
   pico-sdk-version:
     description: 'Version/tag/branch of pico-sdk to use'
     required: false
-    default: 'master'
+    default: '2.2.0'
   picotool-version:
     description: 'Version/tag/branch of picotool to use'
     required: false
-    default: 'master'
+    default: '2.2.0'
   toolchain-version:
     description: 'ARM GCC toolchain version to use'
     required: false
-    default: '13.2.rel1'
+    default: '14.2.rel1'
   cmake-args:
     description: 'Additional arguments to pass to cmake configure'
     required: false
@@ -49,11 +49,7 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Setup Python
-      uses: actions/setup-python@v6
-      with:
-        python-version: '3.14'
-    
+
     - name: Install PyYAML
       shell: bash
       run: |
@@ -64,35 +60,9 @@ runs:
       id: setup-tools
       shell: bash
       run: |
-        # Run the Python installer script
         python "${{ github.action_path }}/install.py" \
           --sdk-version "${{ inputs.pico-sdk-version }}" \
           --toolchain-version "${{ inputs.toolchain-version }}"
-        
-        # Set environment variables and outputs based on detected OS
-        if [[ "$RUNNER_OS" == "Windows" ]]; then
-          INSTALL_DIR="$USERPROFILE/.pico-sdk"
-        else
-          INSTALL_DIR="$HOME/.pico-sdk"
-        fi
-        
-        echo "PICO_SDK_PATH=$INSTALL_DIR/pico-sdk" >> $GITHUB_ENV
-        echo "pico-sdk-path=$INSTALL_DIR/pico-sdk" >> $GITHUB_OUTPUT
-        echo "picotool-path=$INSTALL_DIR/picotool" >> $GITHUB_OUTPUT
-        echo "toolchain-path=$INSTALL_DIR/toolchain" >> $GITHUB_OUTPUT
-        
-        # Add tools to PATH
-        if [[ "$RUNNER_OS" == "Windows" ]]; then
-          echo "$INSTALL_DIR/openocd/bin" >> $GITHUB_PATH
-          echo "$INSTALL_DIR/picotool" >> $GITHUB_PATH
-          echo "$INSTALL_DIR/picosdktools" >> $GITHUB_PATH
-          echo "$INSTALL_DIR/riscv-toolchain/bin" >> $GITHUB_PATH
-        else
-          echo "$INSTALL_DIR/openocd/bin" >> $GITHUB_PATH
-          echo "$INSTALL_DIR/picotool/bin" >> $GITHUB_PATH
-          echo "$INSTALL_DIR/picosdktools/pioasm" >> $GITHUB_PATH
-          echo "$INSTALL_DIR/riscv-toolchain/bin" >> $GITHUB_PATH
-        fi
 
     - name: Configure and build project
       id: build
