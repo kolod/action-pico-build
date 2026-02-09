@@ -92,6 +92,54 @@ jobs:
           name: firmware-ubuntu-14.2
           path: ${{ steps.build.outputs.build-path }}/*.uf2
 
+  test-custom-versions:
+    name: Custom Versions (SDK 2.2.0, Picotool 2.1.1-a4, Toolchain 14.2.rel1)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Build with Custom Versions
+        id: build
+        uses: ./
+        with:
+          source-dir: test
+          pico-sdk-version: '2.2.0'
+          picotool-version: '2.1.1-a4'
+          toolchain-version: '14.2.rel1'
+      
+      - name: Verify Build and Versions
+        shell: bash
+        run: |
+          echo "Build path: ${{ steps.build.outputs.build-path }}"
+          echo "SDK path: ${{ steps.build.outputs.pico-sdk-path }}"
+          echo "Picotool path: ${{ steps.build.outputs.picotool-path }}"
+          echo "Toolchain path: ${{ steps.build.outputs.toolchain-path }}"
+          
+          # Verify versions
+          arm-none-eabi-gcc --version
+          picotool version
+          
+          # Check if build directory exists
+          if [ ! -d "${{ steps.build.outputs.build-path }}" ]; then
+            echo "Error: Build directory not found"
+            exit 1
+          fi
+          
+          # Check if UF2 file was created
+          if [ ! -f "${{ steps.build.outputs.build-path }}/test_project.uf2" ]; then
+            echo "Error: UF2 file not found"
+            exit 1
+          fi
+          
+          echo "Build with custom versions successful!"
+      
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-custom-versions
+          path: ${{ steps.build.outputs.build-path }}/*.uf2
+
 #  test-basic-windows:
 #    name: Basic Build (Windows)
 #    runs-on: windows-latest
