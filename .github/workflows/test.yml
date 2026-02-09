@@ -93,7 +93,7 @@ jobs:
           path: ${{ steps.build.outputs.build-path }}/*.uf2
 
   test-custom-versions:
-    name: Custom Versions (SDK 2.2.0, Picotool 2.1.1, Toolchain 14.2.rel1)
+    name: Custom Versions (SDK 2.2.0, Picotool 2.2.0-a4, Toolchain 14.2.rel1)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -105,7 +105,7 @@ jobs:
         with:
           source-dir: test
           pico-sdk-version: '2.2.0'
-          picotool-version: '2.1.1'
+          picotool-version: '2.2.0-a4'
           toolchain-version: '14.2.rel1'
       
       - name: Verify Build and Versions
