@@ -158,8 +158,48 @@ jobs:
 You can use any valid git tag, branch, or commit SHA for `pico-sdk-version` and `picotool-version`. Common versions include:
 
 - `master` - Latest development version
-- `1.5.1`, `1.5.0`, `1.4.0` - Stable releases
+- `2.0.0`, `1.5.1`, `1.5.0`, `1.4.0` - Stable releases
 - `develop` - Development branch
+
+## Version Compatibility
+
+### Pico SDK & Picotool
+
+It's important to use compatible versions of pico-sdk and picotool together. Here are recommended combinations:
+
+| Pico SDK Version | Compatible Picotool Version | Notes |
+|------------------|----------------------------|-------|
+| `2.0.0` | `2.0.0` | Recommended stable combination |
+| `1.5.1` | `1.1.2` | Last SDK 1.x release |
+| `master` | `master` | Latest development (Linux only on Windows) |
+
+**Important notes:**
+- Newer SDK versions (2.1.0+) may have API changes (e.g., mbedtls) that are incompatible with older picotool releases
+- On Windows, only release versions of picotool are supported (prebuilt binaries). Use `master` branch only on Linux
+- When in doubt, use matching version numbers (e.g., SDK 2.0.0 with Picotool 2.0.0)
+
+### ARM GCC Toolchain
+
+Common toolchain versions:
+
+| Toolchain Version | Release Date | Notes |
+|-------------------|--------------|-------|
+| `14.2.rel1` | 2024 | Latest, supports all features |
+| `13.2.rel1` | 2023 | Default, well-tested |
+| `12.3.rel1` | 2023 | Older, stable |
+
+All toolchain versions work with all SDK versions. Use the latest for best performance and features.
+
+## Platform-Specific Notes
+
+### Windows
+- Picotool is installed from prebuilt binaries (release versions only)
+- GNU Make is automatically installed via Chocolatey
+- Builds use Unix Makefiles generator with ARM GCC
+
+### Linux
+- Picotool is built from source (supports any version/branch)
+- All dependencies installed via apt-get and direct downloads
 
 ## License
 
