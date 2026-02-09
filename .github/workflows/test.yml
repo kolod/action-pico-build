@@ -8,9 +8,12 @@ on:
   workflow_dispatch:
 
 jobs:
-  test-basic-ubuntu:
-    name: Basic Build (Ubuntu)
-    runs-on: ubuntu-latest
+  test-basic:
+    name: Basic Build (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,7 +24,8 @@ jobs:
         with:
           source-dir: test
       
-      - name: Verify Build Outputs
+      - name: Verify Build Outputs (Bash)
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           echo "Build path: ${{ steps.build.outputs.build-path }}"
@@ -43,15 +47,41 @@ jobs:
           
           echo "Build successful!"
       
+      - name: Verify Build Outputs (PowerShell)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "Build path: ${{ steps.build.outputs.build-path }}"
+          Write-Host "SDK path: ${{ steps.build.outputs.pico-sdk-path }}"
+          Write-Host "Picotool path: ${{ steps.build.outputs.picotool-path }}"
+          Write-Host "Toolchain path: ${{ steps.build.outputs.toolchain-path }}"
+          
+          # Check if build directory exists
+          if (-not (Test-Path "${{ steps.build.outputs.build-path }}")) {
+            Write-Host "Error: Build directory not found"
+            exit 1
+          }
+          
+          # Check if UF2 file was created
+          if (-not (Test-Path "${{ steps.build.outputs.build-path }}/test_project.uf2")) {
+            Write-Host "Error: UF2 file not found"
+            exit 1
+          }
+          
+          Write-Host "Build successful!"
+      
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: firmware-ubuntu
+          name: firmware-${{ matrix.os }}
           path: ${{ steps.build.outputs.build-path }}/*.uf2
 
   test-toolchain-14-2:
-    name: Toolchain 14.2.rel1 (Ubuntu)
-    runs-on: ubuntu-latest
+    name: Toolchain 14.2.rel1 (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -63,7 +93,8 @@ jobs:
           source-dir: test
           toolchain-version: '14.2.rel1'
       
-      - name: Verify Build and Toolchain
+      - name: Verify Build and Toolchain (Bash)
+        if: runner.os == 'Linux'
         shell: bash
         run: |
           echo "Build path: ${{ steps.build.outputs.build-path }}"
@@ -86,10 +117,34 @@ jobs:
           
           echo "Build with toolchain 14.2.rel1 successful!"
       
+      - name: Verify Build and Toolchain (PowerShell)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "Build path: ${{ steps.build.outputs.build-path }}"
+          Write-Host "Toolchain path: ${{ steps.build.outputs.toolchain-path }}"
+          
+          # Verify toolchain version
+          arm-none-eabi-gcc --version
+          
+          # Check if build directory exists
+          if (-not (Test-Path "${{ steps.build.outputs.build-path }}")) {
+            Write-Host "Error: Build directory not found"
+            exit 1
+          }
+          
+          # Check if UF2 file was created
+          if (-not (Test-Path "${{ steps.build.outputs.build-path }}/test_project.uf2")) {
+            Write-Host "Error: UF2 file not found"
+            exit 1
+          }
+          
+          Write-Host "Build with toolchain 14.2.rel1 successful!"
+      
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: firmware-ubuntu-14.2
+          name: firmware-${{ matrix.os }}-14.2
           path: ${{ steps.build.outputs.build-path }}/*.uf2
 
   test-custom-versions:
