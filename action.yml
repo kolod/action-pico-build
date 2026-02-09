@@ -216,12 +216,21 @@ runs:
         New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
         Set-Location $buildDir
         
+        # Find full paths to compilers
+        $cCompiler = (Get-Command arm-none-eabi-gcc).Source
+        $cxxCompiler = (Get-Command arm-none-eabi-g++).Source
+        $makePath = (Get-Command make).Source
+        
+        Write-Host "C Compiler: $cCompiler"
+        Write-Host "C++ Compiler: $cxxCompiler"
+        Write-Host "Make: $makePath"
+        
         # Configure with cmake (force GCC toolchain instead of MSVC)
         cmake $sourceDir `
           -G "Unix Makefiles" `
-          -DCMAKE_C_COMPILER=arm-none-eabi-gcc `
-          -DCMAKE_CXX_COMPILER=arm-none-eabi-g++ `
-          -DCMAKE_MAKE_PROGRAM=make `
+          -DCMAKE_C_COMPILER="$cCompiler" `
+          -DCMAKE_CXX_COMPILER="$cxxCompiler" `
+          -DCMAKE_MAKE_PROGRAM="$makePath" `
           -DPICO_SDK_PATH="$env:PICO_SDK_PATH" `
           ${{ inputs.cmake-args }}
         
