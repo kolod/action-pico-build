@@ -38,7 +38,7 @@ outputs:
     value: ${{ steps.setup-sdk.outputs.pico-sdk-path }}
   picotool-path:
     description: 'Path to the installed picotool'
-    value: ${{ steps.setup-picotool.outputs.picotool-path }}
+    value: ${{ steps.setup-picotool.outputs.picotool-path || steps.setup-picotool-windows.outputs.picotool-path }}
   toolchain-path:
     description: 'Path to the installed ARM GCC toolchain'
     value: ${{ steps.setup-toolchain.outputs.toolchain-path || steps.setup-toolchain-windows.outputs.toolchain-path }}
@@ -124,8 +124,45 @@ runs:
         echo "PICO_SDK_PATH=$PICO_SDK_PATH" >> $GITHUB_ENV
         echo "pico-sdk-path=$PICO_SDK_PATH" >> $GITHUB_OUTPUT
 
-    - name: Clone and build picotool
+    - name: Install picotool (Windows)
+      id: setup-picotool-windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $picotoolVersion = "${{ inputs.picotool-version }}"
+        $picotoolInstall = "$env:RUNNER_TEMP\picotool"
+        
+        # For release versions (not master/branches), download prebuilt binary
+        if ($picotoolVersion -match '^\d+\.\d+\.\d+') {
+          Write-Host "Downloading prebuilt picotool version $picotoolVersion..."
+          $picotoolUrl = "https://github.com/raspberrypi/picotool/releases/download/$picotoolVersion/picotool-$picotoolVersion-windows.zip"
+          $picotoolZip = "$env:RUNNER_TEMP\picotool.zip"
+          
+          try {
+            Invoke-WebRequest -Uri $picotoolUrl -OutFile $picotoolZip -UseBasicParsing
+            
+            Write-Host "Extracting picotool..."
+            Expand-Archive -Path $picotoolZip -DestinationPath $picotoolInstall -Force
+            
+            # Add to PATH
+            $picotoolBin = "$picotoolInstall"
+            echo "$picotoolBin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            
+            Write-Host "Picotool installed at: $picotoolBin"
+            echo "picotool-path=$picotoolInstall" >> $env:GITHUB_OUTPUT
+          } catch {
+            Write-Host "Warning: Failed to download prebuilt picotool for Windows. Picotool will not be available."
+            Write-Host "Error: $_"
+            echo "picotool-path=" >> $env:GITHUB_OUTPUT
+          }
+        } else {
+          Write-Host "Warning: Picotool version '$picotoolVersion' is not a release version. Skipping picotool installation on Windows."
+          echo "picotool-path=" >> $env:GITHUB_OUTPUT
+        }
+
+    - name: Clone and build picotool (Linux)
       id: setup-picotool
+      if: runner.os == 'Linux'
       shell: bash
       run: |
         PICOTOOL_SRC="${RUNNER_TEMP}/picotool-src"
