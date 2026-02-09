@@ -27,6 +27,7 @@ jobs:
           echo "Build path: ${{ steps.build.outputs.build-path }}"
           echo "SDK path: ${{ steps.build.outputs.pico-sdk-path }}"
           echo "Picotool path: ${{ steps.build.outputs.picotool-path }}"
+          echo "Toolchain path: ${{ steps.build.outputs.toolchain-path }}"
           
           # Check if build directory exists
           if [ ! -d "${{ steps.build.outputs.build-path }}" ]; then

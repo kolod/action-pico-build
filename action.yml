@@ -39,6 +39,9 @@ outputs:
   picotool-path:
     description: 'Path to the installed picotool'
     value: ${{ steps.setup-picotool.outputs.picotool-path }}
+  toolchain-path:
+    description: 'Path to the installed ARM GCC toolchain'
+    value: ${{ steps.setup-toolchain.outputs.toolchain-path || steps.setup-toolchain-windows.outputs.toolchain-path }}
   build-path:
     description: 'Path to the build directory'
     value: ${{ steps.build.outputs.build-path }}
@@ -47,13 +50,40 @@ runs:
   using: 'composite'
   steps:
     - name: Install dependencies (Ubuntu)
+      id: setup-toolchain
       if: runner.os == 'Linux'
       shell: bash
       run: |
+        # Install system dependencies (without ARM toolchain)
         sudo apt-get update
-        sudo apt-get install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib build-essential libusb-1.0-0-dev pkg-config
+        sudo apt-get install -y cmake build-essential libusb-1.0-0-dev pkg-config
+        
+        # Download and install specific ARM GCC toolchain version
+        TOOLCHAIN_VERSION="${{ inputs.toolchain-version }}"
+        ARM_GCC_URL="https://developer.arm.com/-/media/Files/downloads/gnu/${TOOLCHAIN_VERSION}/binrel/arm-gnu-toolchain-${TOOLCHAIN_VERSION}-x86_64-arm-none-eabi.tar.xz"
+        ARM_GCC_ARCHIVE="${RUNNER_TEMP}/arm-gcc.tar.xz"
+        ARM_GCC_DIR="${RUNNER_TEMP}/arm-gcc"
+        
+        echo "Downloading ARM GCC toolchain version ${TOOLCHAIN_VERSION}..."
+        wget -q -O "$ARM_GCC_ARCHIVE" "$ARM_GCC_URL"
+        
+        echo "Extracting ARM GCC toolchain..."
+        mkdir -p "$ARM_GCC_DIR"
+        tar -xf "$ARM_GCC_ARCHIVE" -C "$ARM_GCC_DIR" --strip-components=1
+
+        # Add to PATH
+        ARM_GCC_BIN="${ARM_GCC_DIR}/bin"
+        echo "$ARM_GCC_BIN" >> $GITHUB_PATH
+        
+        # Check version
+        ARM_GCC_VERSION=$("$ARM_GCC_BIN/arm-none-eabi-gcc" --version | head -n 1)
+        echo "Installed ARM GCC version: $ARM_GCC_VERSION"
+        
+        echo "ARM GCC toolchain installed at: $ARM_GCC_DIR"
+        echo "toolchain-path=$ARM_GCC_DIR" >> $GITHUB_OUTPUT
 
     - name: Install dependencies (Windows)
+      id: setup-toolchain-windows
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
@@ -72,11 +102,15 @@ runs:
         # Find the extracted directory
         $extractedDir = Get-ChildItem -Path $armGccDir -Directory | Select-Object -First 1
         $armGccBin = Join-Path $extractedDir.FullName "bin"
+        $toolchainPath = $extractedDir.FullName
         
         # Add to PATH
         echo "$armGccBin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
         
         Write-Host "ARM GCC installed at: $armGccBin"
+        
+        # Set output
+        echo "toolchain-path=$toolchainPath" >> $env:GITHUB_OUTPUT
 
     - name: Clone pico-sdk
       id: setup-sdk
@@ -112,13 +146,8 @@ runs:
         cmake --install . --config Release
         
         # Add picotool to PATH
-        if [[ "$RUNNER_OS" == "Windows" ]]; then
-          PICOTOOL_BIN="$PICOTOOL_INSTALL/bin"
-          echo "$PICOTOOL_BIN" >> $GITHUB_PATH
-        else
-          PICOTOOL_BIN="$PICOTOOL_INSTALL/bin"
-          echo "$PICOTOOL_BIN" >> $GITHUB_PATH
-        fi
+        PICOTOOL_BIN="$PICOTOOL_INSTALL/bin"
+        echo "$PICOTOOL_BIN" >> $GITHUB_PATH
         
         echo "picotool-path=$PICOTOOL_INSTALL" >> $GITHUB_OUTPUT
 
