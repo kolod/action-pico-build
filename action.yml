@@ -44,7 +44,7 @@ outputs:
     value: ${{ steps.setup-toolchain.outputs.toolchain-path || steps.setup-toolchain-windows.outputs.toolchain-path }}
   build-path:
     description: 'Path to the build directory'
-    value: ${{ steps.build.outputs.build-path }}
+    value: ${{ steps.build-linux.outputs.build-path || steps.build-windows.outputs.build-path }}
 
 runs:
   using: 'composite'
@@ -192,20 +192,69 @@ runs:
         
         echo "picotool-path=$PICOTOOL_INSTALL" >> $GITHUB_OUTPUT
 
-    - name: Configure and build project
-      id: build
+    - name: Configure and build project (Windows)
+      id: build-windows
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $sourceDir = "${{ inputs.source-dir }}"
+        $buildDir = "${{ inputs.build-dir }}"
+        
+        # Resolve source directory
+        if (-not ([System.IO.Path]::IsPathRooted($sourceDir))) {
+          $sourceDir = Join-Path "$env:GITHUB_WORKSPACE" $sourceDir
+        }
+        
+        # Resolve build directory
+        if (-not ([System.IO.Path]::IsPathRooted($buildDir))) {
+          $buildDir = Join-Path $sourceDir $buildDir
+        }
+        
+        Write-Host "Source directory: $sourceDir"
+        Write-Host "Build directory: $buildDir"
+        
+        New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
+        Set-Location $buildDir
+        
+        # Configure with cmake (force GCC toolchain instead of MSVC)
+        cmake $sourceDir `
+          -G "Unix Makefiles" `
+          -DCMAKE_C_COMPILER=arm-none-eabi-gcc `
+          -DCMAKE_CXX_COMPILER=arm-none-eabi-g++ `
+          -DCMAKE_MAKE_PROGRAM=make `
+          -DPICO_SDK_PATH="$env:PICO_SDK_PATH" `
+          ${{ inputs.cmake-args }}
+        
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "CMake configuration failed"
+          exit $LASTEXITCODE
+        }
+        
+        # Build
+        cmake --build . --config Release
+        
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "Build failed"
+          exit $LASTEXITCODE
+        }
+        
+        echo "build-path=$buildDir" >> $env:GITHUB_OUTPUT
+
+    - name: Configure and build project (Linux)
+      id: build-linux
+      if: runner.os == 'Linux'
       shell: bash
       run: |
         SOURCE_DIR="${{ inputs.source-dir }}"
         BUILD_DIR="${{ inputs.build-dir }}"
         
         # Resolve source directory
-        if [[ "$SOURCE_DIR" != /* ]] && [[ ! "$SOURCE_DIR" =~ ^[A-Za-z]: ]]; then
+        if [[ "$SOURCE_DIR" != /* ]]; then
           SOURCE_DIR="${GITHUB_WORKSPACE}/${SOURCE_DIR}"
         fi
         
         # Resolve build directory
-        if [[ "$BUILD_DIR" != /* ]] && [[ ! "$BUILD_DIR" =~ ^[A-Za-z]: ]]; then
+        if [[ "$BUILD_DIR" != /* ]]; then
           BUILD_DIR="${SOURCE_DIR}/${BUILD_DIR}"
         fi
         
@@ -215,17 +264,9 @@ runs:
         mkdir -p "$BUILD_DIR"
         cd "$BUILD_DIR"
         
-        # Set up cmake arguments based on platform
-        CMAKE_EXTRA_ARGS=""
-        if [[ "$RUNNER_OS" == "Windows" ]]; then
-          # Force GCC toolchain on Windows instead of MSVC
-          CMAKE_EXTRA_ARGS="-G \"Unix Makefiles\" -DCMAKE_C_COMPILER=arm-none-eabi-gcc -DCMAKE_CXX_COMPILER=arm-none-eabi-g++ -DCMAKE_MAKE_PROGRAM=make"
-        fi
-        
         # Configure with cmake
         cmake "$SOURCE_DIR" \
           -DPICO_SDK_PATH="$PICO_SDK_PATH" \
-          $CMAKE_EXTRA_ARGS \
           ${{ inputs.cmake-args }}
         
         # Build
