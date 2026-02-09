@@ -35,247 +35,79 @@ inputs:
 outputs:
   pico-sdk-path:
     description: 'Path to the installed pico-sdk'
-    value: ${{ steps.setup-sdk.outputs.pico-sdk-path }}
+    value: ${{ steps.setup-tools.outputs.pico-sdk-path }}
   picotool-path:
     description: 'Path to the installed picotool'
-    value: ${{ steps.setup-picotool.outputs.picotool-path || steps.setup-picotool-windows.outputs.picotool-path }}
+    value: ${{ steps.setup-tools.outputs.picotool-path }}
   toolchain-path:
     description: 'Path to the installed ARM GCC toolchain'
-    value: ${{ steps.setup-toolchain.outputs.toolchain-path || steps.setup-toolchain-windows.outputs.toolchain-path }}
+    value: ${{ steps.setup-tools.outputs.toolchain-path }}
   build-path:
     description: 'Path to the build directory'
-    value: ${{ steps.build-linux.outputs.build-path || steps.build-windows.outputs.build-path }}
+    value: ${{ steps.build.outputs.build-path }}
 
 runs:
   using: 'composite'
   steps:
-    - name: Install dependencies (Ubuntu)
-      id: setup-toolchain
-      if: runner.os == 'Linux'
+    - name: Setup Python
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.14'
+    
+    - name: Install PyYAML
       shell: bash
       run: |
-        # Install system dependencies (without ARM toolchain)
-        sudo apt-get update
-        sudo apt-get install -y cmake build-essential libusb-1.0-0-dev pkg-config
-        
-        # Download and install specific ARM GCC toolchain version
-        TOOLCHAIN_VERSION="${{ inputs.toolchain-version }}"
-        ARM_GCC_URL="https://developer.arm.com/-/media/Files/downloads/gnu/${TOOLCHAIN_VERSION}/binrel/arm-gnu-toolchain-${TOOLCHAIN_VERSION}-x86_64-arm-none-eabi.tar.xz"
-        ARM_GCC_ARCHIVE="${RUNNER_TEMP}/arm-gcc.tar.xz"
-        ARM_GCC_DIR="${RUNNER_TEMP}/arm-gcc"
-        
-        echo "Downloading ARM GCC toolchain version ${TOOLCHAIN_VERSION}..."
-        wget -q -O "$ARM_GCC_ARCHIVE" "$ARM_GCC_URL"
-        
-        echo "Extracting ARM GCC toolchain..."
-        mkdir -p "$ARM_GCC_DIR"
-        tar -xf "$ARM_GCC_ARCHIVE" -C "$ARM_GCC_DIR" --strip-components=1
-
-        # Add to PATH
-        ARM_GCC_BIN="${ARM_GCC_DIR}/bin"
-        echo "$ARM_GCC_BIN" >> $GITHUB_PATH
-        
-        # Check version
-        ARM_GCC_VERSION=$("$ARM_GCC_BIN/arm-none-eabi-gcc" --version | head -n 1)
-        echo "Installed ARM GCC version: $ARM_GCC_VERSION"
-        
-        echo "ARM GCC toolchain installed at: $ARM_GCC_DIR"
-        echo "toolchain-path=$ARM_GCC_DIR" >> $GITHUB_OUTPUT
-
-    - name: Install dependencies (Windows)
-      id: setup-toolchain-windows
-      if: runner.os == 'Windows'
-      shell: pwsh
-      run: |
-        # Install GNU Make
-        Write-Host "Installing GNU Make..."
-        choco install make -y
-        
-        # Install ARM GCC toolchain
-        $toolchainVersion = "${{ inputs.toolchain-version }}"
-        $armGccUrl = "https://developer.arm.com/-/media/Files/downloads/gnu/$toolchainVersion/binrel/arm-gnu-toolchain-$toolchainVersion-mingw-w64-i686-arm-none-eabi.zip"
-        $armGccZip = "$env:RUNNER_TEMP\arm-gcc.zip"
-        $armGccDir = "$env:RUNNER_TEMP\arm-gcc"
-        
-        Write-Host "Downloading ARM GCC toolchain version $toolchainVersion..."
-        Invoke-WebRequest -Uri $armGccUrl -OutFile $armGccZip -UseBasicParsing
-        
-        Write-Host "Extracting ARM GCC toolchain..."
-        Expand-Archive -Path $armGccZip -DestinationPath $armGccDir -Force
-        
-        # Find the extracted directory
-        $extractedDir = Get-ChildItem -Path $armGccDir -Directory | Select-Object -First 1
-        $armGccBin = Join-Path $extractedDir.FullName "bin"
-        $toolchainPath = $extractedDir.FullName
-        
-        # Add to PATH
-        echo "$armGccBin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-        
-        Write-Host "ARM GCC installed at: $armGccBin"
-        
-        # Set output
-        echo "toolchain-path=$toolchainPath" >> $env:GITHUB_OUTPUT
-
-    - name: Clone pico-sdk
-      id: setup-sdk
+        python -m pip install --upgrade pip
+        pip install pyyaml
+    
+    - name: Install Pico SDK Tools
+      id: setup-tools
       shell: bash
       run: |
-        PICO_SDK_PATH="${RUNNER_TEMP}/pico-sdk"
-        echo "Cloning pico-sdk version: ${{ inputs.pico-sdk-version }}"
-        git clone --depth 1 --branch "${{ inputs.pico-sdk-version }}" https://github.com/raspberrypi/pico-sdk.git "$PICO_SDK_PATH"
-        cd "$PICO_SDK_PATH"
-        git submodule update --init --recursive
-        echo "PICO_SDK_PATH=$PICO_SDK_PATH" >> $GITHUB_ENV
-        echo "pico-sdk-path=$PICO_SDK_PATH" >> $GITHUB_OUTPUT
+        # Run the Python installer script
+        python "${{ github.action_path }}/install.py" \
+          --sdk-version "${{ inputs.pico-sdk-version }}" \
+          --toolchain-version "${{ inputs.toolchain-version }}"
+        
+        # Set environment variables and outputs based on detected OS
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          INSTALL_DIR="$USERPROFILE/.pico-sdk"
+        else
+          INSTALL_DIR="$HOME/.pico-sdk"
+        fi
+        
+        echo "PICO_SDK_PATH=$INSTALL_DIR/pico-sdk" >> $GITHUB_ENV
+        echo "pico-sdk-path=$INSTALL_DIR/pico-sdk" >> $GITHUB_OUTPUT
+        echo "picotool-path=$INSTALL_DIR/picotool" >> $GITHUB_OUTPUT
+        echo "toolchain-path=$INSTALL_DIR/toolchain" >> $GITHUB_OUTPUT
+        
+        # Add tools to PATH
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          echo "$INSTALL_DIR/openocd/bin" >> $GITHUB_PATH
+          echo "$INSTALL_DIR/picotool" >> $GITHUB_PATH
+          echo "$INSTALL_DIR/picosdktools" >> $GITHUB_PATH
+          echo "$INSTALL_DIR/riscv-toolchain/bin" >> $GITHUB_PATH
+        else
+          echo "$INSTALL_DIR/openocd/bin" >> $GITHUB_PATH
+          echo "$INSTALL_DIR/picotool/bin" >> $GITHUB_PATH
+          echo "$INSTALL_DIR/picosdktools/pioasm" >> $GITHUB_PATH
+          echo "$INSTALL_DIR/riscv-toolchain/bin" >> $GITHUB_PATH
+        fi
 
-    - name: Install picotool (Windows)
-      id: setup-picotool-windows
-      if: runner.os == 'Windows'
-      shell: pwsh
-      run: |
-        $picotoolVersion = "${{ inputs.picotool-version }}"
-        $picotoolInstall = "$env:RUNNER_TEMP\picotool"
-        
-        # For release versions (not master/branches), download prebuilt binary
-        if ($picotoolVersion -match '^\d+\.\d+\.\d+') {
-          Write-Host "Downloading prebuilt picotool version $picotoolVersion..."
-          $picotoolUrl = "https://github.com/raspberrypi/picotool/releases/download/$picotoolVersion/picotool-$picotoolVersion-windows.zip"
-          $picotoolZip = "$env:RUNNER_TEMP\picotool.zip"
-          
-          try {
-            Invoke-WebRequest -Uri $picotoolUrl -OutFile $picotoolZip -UseBasicParsing
-            
-            Write-Host "Extracting picotool..."
-            Expand-Archive -Path $picotoolZip -DestinationPath $picotoolInstall -Force
-            
-            # Add to PATH
-            $picotoolBin = "$picotoolInstall"
-            echo "$picotoolBin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-            
-            Write-Host "Picotool installed at: $picotoolBin"
-            echo "picotool-path=$picotoolInstall" >> $env:GITHUB_OUTPUT
-          } catch {
-            Write-Host "Warning: Failed to download prebuilt picotool for Windows. Picotool will not be available."
-            Write-Host "Error: $_"
-            echo "picotool-path=" >> $env:GITHUB_OUTPUT
-          }
-        } else {
-          Write-Host "Warning: Picotool version '$picotoolVersion' is not a release version. Skipping picotool installation on Windows."
-          echo "picotool-path=" >> $env:GITHUB_OUTPUT
-        }
-
-    - name: Clone and build picotool (Linux)
-      id: setup-picotool
-      if: runner.os == 'Linux'
-      shell: bash
-      run: |
-        PICOTOOL_SRC="${RUNNER_TEMP}/picotool-src"
-        PICOTOOL_BUILD="${RUNNER_TEMP}/picotool-build"
-        PICOTOOL_INSTALL="${RUNNER_TEMP}/picotool"
-        
-        echo "Cloning picotool version: ${{ inputs.picotool-version }}"
-        git clone --depth 1 --branch "${{ inputs.picotool-version }}" https://github.com/raspberrypi/picotool.git "$PICOTOOL_SRC"
-        
-        mkdir -p "$PICOTOOL_BUILD"
-        cd "$PICOTOOL_BUILD"
-        
-        cmake "$PICOTOOL_SRC" \
-          -DCMAKE_INSTALL_PREFIX="$PICOTOOL_INSTALL" \
-          -DPICO_SDK_PATH="$PICO_SDK_PATH"
-        
-        cmake --build . --config Release
-        cmake --install . --config Release
-        
-        # Add picotool to PATH
-        PICOTOOL_BIN="$PICOTOOL_INSTALL/bin"
-        echo "$PICOTOOL_BIN" >> $GITHUB_PATH
-        
-        echo "picotool-path=$PICOTOOL_INSTALL" >> $GITHUB_OUTPUT
-
-    - name: Configure and build project (Windows)
-      id: build-windows
-      if: runner.os == 'Windows'
-      shell: pwsh
-      run: |
-        $sourceDir = "${{ inputs.source-dir }}"
-        $buildDir = "${{ inputs.build-dir }}"
-        
-        # Resolve source directory
-        if (-not ([System.IO.Path]::IsPathRooted($sourceDir))) {
-          $sourceDir = Join-Path "$env:GITHUB_WORKSPACE" $sourceDir
-        }
-        
-        # Resolve build directory
-        if (-not ([System.IO.Path]::IsPathRooted($buildDir))) {
-          $buildDir = Join-Path $sourceDir $buildDir
-        }
-        
-        Write-Host "Source directory: $sourceDir"
-        Write-Host "Build directory: $buildDir"
-        
-        New-Item -ItemType Directory -Force -Path $buildDir | Out-Null
-        Set-Location $buildDir
-        
-        # Get toolchain path from previous step output
-        $toolchainPath = "${{ steps.setup-toolchain-windows.outputs.toolchain-path }}"
-        $toolchainBin = Join-Path $toolchainPath "bin"
-        
-        # Construct full paths to compilers
-        $cCompiler = Join-Path $toolchainBin "arm-none-eabi-gcc.exe"
-        $cxxCompiler = Join-Path $toolchainBin "arm-none-eabi-g++.exe"
-        
-        Write-Host "Toolchain path: $toolchainPath"
-        Write-Host "C Compiler: $cCompiler"
-        Write-Host "C++ Compiler: $cxxCompiler"
-        
-        # Verify compilers exist
-        if (-not (Test-Path $cCompiler)) {
-          Write-Host "Error: C compiler not found at $cCompiler"
-          exit 1
-        }
-        if (-not (Test-Path $cxxCompiler)) {
-          Write-Host "Error: C++ compiler not found at $cxxCompiler"
-          exit 1
-        }
-        
-        # Configure with cmake (force GCC toolchain instead of MSVC)
-        cmake $sourceDir `
-          -G "Unix Makefiles" `
-          -DCMAKE_C_COMPILER="$cCompiler" `
-          -DCMAKE_CXX_COMPILER="$cxxCompiler" `
-          -DPICO_SDK_PATH="$env:PICO_SDK_PATH" `
-          ${{ inputs.cmake-args }}
-        
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "CMake configuration failed"
-          exit $LASTEXITCODE
-        }
-        
-        # Build
-        cmake --build . --config Release
-        
-        if ($LASTEXITCODE -ne 0) {
-          Write-Host "Build failed"
-          exit $LASTEXITCODE
-        }
-        
-        echo "build-path=$buildDir" >> $env:GITHUB_OUTPUT
-
-    - name: Configure and build project (Linux)
-      id: build-linux
-      if: runner.os == 'Linux'
+    - name: Configure and build project
+      id: build
       shell: bash
       run: |
         SOURCE_DIR="${{ inputs.source-dir }}"
         BUILD_DIR="${{ inputs.build-dir }}"
         
         # Resolve source directory
-        if [[ "$SOURCE_DIR" != /* ]]; then
+        if [[ "$SOURCE_DIR" != /* ]] && [[ "$SOURCE_DIR" != *:* ]]; then
           SOURCE_DIR="${GITHUB_WORKSPACE}/${SOURCE_DIR}"
         fi
         
         # Resolve build directory
-        if [[ "$BUILD_DIR" != /* ]]; then
+        if [[ "$BUILD_DIR" != /* ]] && [[ "$BUILD_DIR" != *:* ]]; then
           BUILD_DIR="${SOURCE_DIR}/${BUILD_DIR}"
         fi
         
