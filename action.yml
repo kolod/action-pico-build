@@ -87,6 +87,10 @@ runs:
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
+        # Install GNU Make
+        Write-Host "Installing GNU Make..."
+        choco install make -y
+        
         # Install ARM GCC toolchain
         $toolchainVersion = "${{ inputs.toolchain-version }}"
         $armGccUrl = "https://developer.arm.com/-/media/Files/downloads/gnu/$toolchainVersion/binrel/arm-gnu-toolchain-$toolchainVersion-mingw-w64-i686-arm-none-eabi.zip"
@@ -211,9 +215,17 @@ runs:
         mkdir -p "$BUILD_DIR"
         cd "$BUILD_DIR"
         
+        # Set up cmake arguments based on platform
+        CMAKE_EXTRA_ARGS=""
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          # Force GCC toolchain on Windows instead of MSVC
+          CMAKE_EXTRA_ARGS="-G \"Unix Makefiles\" -DCMAKE_C_COMPILER=arm-none-eabi-gcc -DCMAKE_CXX_COMPILER=arm-none-eabi-g++ -DCMAKE_MAKE_PROGRAM=make"
+        fi
+        
         # Configure with cmake
         cmake "$SOURCE_DIR" \
           -DPICO_SDK_PATH="$PICO_SDK_PATH" \
+          $CMAKE_EXTRA_ARGS \
           ${{ inputs.cmake-args }}
         
         # Build
