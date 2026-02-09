@@ -148,8 +148,11 @@ jobs:
           path: ${{ steps.build.outputs.build-path }}/*.uf2
 
   test-custom-versions:
-    name: Custom Versions (SDK 2.2.0, Picotool 2.2.0-a4, Toolchain 14.2.rel1)
-    runs-on: ubuntu-latest
+    name: Custom Versions (SDK 2.2.0, Picotool 2.2.0-a4, Toolchain 14.2.rel1) (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
