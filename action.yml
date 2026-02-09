@@ -1,0 +1,156 @@
+name: 'Pico Build'
+description: 'Build Raspberry Pi Pico projects with pico-sdk and picotool'
+author: 'Your Name'
+
+branding:
+  icon: 'cpu'
+  color: 'green'
+
+inputs:
+  pico-sdk-version:
+    description: 'Version/tag/branch of pico-sdk to use'
+    required: false
+    default: 'master'
+  picotool-version:
+    description: 'Version/tag/branch of picotool to use'
+    required: false
+    default: 'master'
+  toolchain-version:
+    description: 'ARM GCC toolchain version to use'
+    required: false
+    default: '13.2.rel1'
+  cmake-args:
+    description: 'Additional arguments to pass to cmake configure'
+    required: false
+    default: ''
+  source-dir:
+    description: 'Source directory containing CMakeLists.txt'
+    required: false
+    default: '.'
+  build-dir:
+    description: 'Build output directory (relative to source-dir if not absolute)'
+    required: false
+    default: 'build'
+
+outputs:
+  pico-sdk-path:
+    description: 'Path to the installed pico-sdk'
+    value: ${{ steps.setup-sdk.outputs.pico-sdk-path }}
+  picotool-path:
+    description: 'Path to the installed picotool'
+    value: ${{ steps.setup-picotool.outputs.picotool-path }}
+  build-path:
+    description: 'Path to the build directory'
+    value: ${{ steps.build.outputs.build-path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install dependencies (Ubuntu)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib build-essential libusb-1.0-0-dev pkg-config
+
+    - name: Install dependencies (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        # Install ARM GCC toolchain
+        $toolchainVersion = "${{ inputs.toolchain-version }}"
+        $armGccUrl = "https://developer.arm.com/-/media/Files/downloads/gnu/$toolchainVersion/binrel/arm-gnu-toolchain-$toolchainVersion-mingw-w64-i686-arm-none-eabi.zip"
+        $armGccZip = "$env:RUNNER_TEMP\arm-gcc.zip"
+        $armGccDir = "$env:RUNNER_TEMP\arm-gcc"
+        
+        Write-Host "Downloading ARM GCC toolchain version $toolchainVersion..."
+        Invoke-WebRequest -Uri $armGccUrl -OutFile $armGccZip -UseBasicParsing
+        
+        Write-Host "Extracting ARM GCC toolchain..."
+        Expand-Archive -Path $armGccZip -DestinationPath $armGccDir -Force
+        
+        # Find the extracted directory
+        $extractedDir = Get-ChildItem -Path $armGccDir -Directory | Select-Object -First 1
+        $armGccBin = Join-Path $extractedDir.FullName "bin"
+        
+        # Add to PATH
+        echo "$armGccBin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        
+        Write-Host "ARM GCC installed at: $armGccBin"
+
+    - name: Clone pico-sdk
+      id: setup-sdk
+      shell: bash
+      run: |
+        PICO_SDK_PATH="${RUNNER_TEMP}/pico-sdk"
+        echo "Cloning pico-sdk version: ${{ inputs.pico-sdk-version }}"
+        git clone --depth 1 --branch "${{ inputs.pico-sdk-version }}" https://github.com/raspberrypi/pico-sdk.git "$PICO_SDK_PATH"
+        cd "$PICO_SDK_PATH"
+        git submodule update --init
+        echo "PICO_SDK_PATH=$PICO_SDK_PATH" >> $GITHUB_ENV
+        echo "pico-sdk-path=$PICO_SDK_PATH" >> $GITHUB_OUTPUT
+
+    - name: Clone and build picotool
+      id: setup-picotool
+      shell: bash
+      run: |
+        PICOTOOL_SRC="${RUNNER_TEMP}/picotool-src"
+        PICOTOOL_BUILD="${RUNNER_TEMP}/picotool-build"
+        PICOTOOL_INSTALL="${RUNNER_TEMP}/picotool"
+        
+        echo "Cloning picotool version: ${{ inputs.picotool-version }}"
+        git clone --depth 1 --branch "${{ inputs.picotool-version }}" https://github.com/raspberrypi/picotool.git "$PICOTOOL_SRC"
+        
+        mkdir -p "$PICOTOOL_BUILD"
+        cd "$PICOTOOL_BUILD"
+        
+        cmake "$PICOTOOL_SRC" \
+          -DCMAKE_INSTALL_PREFIX="$PICOTOOL_INSTALL" \
+          -DPICO_SDK_PATH="$PICO_SDK_PATH"
+        
+        cmake --build . --config Release
+        cmake --install . --config Release
+        
+        # Add picotool to PATH
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          PICOTOOL_BIN="$PICOTOOL_INSTALL/bin"
+          echo "$PICOTOOL_BIN" >> $GITHUB_PATH
+        else
+          PICOTOOL_BIN="$PICOTOOL_INSTALL/bin"
+          echo "$PICOTOOL_BIN" >> $GITHUB_PATH
+        fi
+        
+        echo "picotool-path=$PICOTOOL_INSTALL" >> $GITHUB_OUTPUT
+
+    - name: Configure and build project
+      id: build
+      shell: bash
+      run: |
+        SOURCE_DIR="${{ inputs.source-dir }}"
+        BUILD_DIR="${{ inputs.build-dir }}"
+        
+        # Resolve source directory
+        if [[ "$SOURCE_DIR" != /* ]] && [[ ! "$SOURCE_DIR" =~ ^[A-Za-z]: ]]; then
+          SOURCE_DIR="${GITHUB_WORKSPACE}/${SOURCE_DIR}"
+        fi
+        
+        # Resolve build directory
+        if [[ "$BUILD_DIR" != /* ]] && [[ ! "$BUILD_DIR" =~ ^[A-Za-z]: ]]; then
+          BUILD_DIR="${SOURCE_DIR}/${BUILD_DIR}"
+        fi
+        
+        echo "Source directory: $SOURCE_DIR"
+        echo "Build directory: $BUILD_DIR"
+        
+        mkdir -p "$BUILD_DIR"
+        cd "$BUILD_DIR"
+        
+        # Configure with cmake
+        cmake "$SOURCE_DIR" \
+          -DPICO_SDK_PATH="$PICO_SDK_PATH" \
+          ${{ inputs.cmake-args }}
+        
+        # Build
+        cmake --build . --config Release
+        
+        echo "build-path=$BUILD_DIR" >> $GITHUB_OUTPUT

@@ -1,0 +1,155 @@
+name: Test Action
+
+on:
+  push:
+    branches: [ main, test ]
+  pull_request:
+    branches: [ main, test ]
+  workflow_dispatch:
+
+jobs:
+  test-basic-ubuntu:
+    name: Basic Build (Ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Build Test Project
+        id: build
+        uses: ./
+        with:
+          source-dir: test
+      
+      - name: Verify Build Outputs
+        shell: bash
+        run: |
+          echo "Build path: ${{ steps.build.outputs.build-path }}"
+          echo "SDK path: ${{ steps.build.outputs.pico-sdk-path }}"
+          echo "Picotool path: ${{ steps.build.outputs.picotool-path }}"
+          
+          # Check if build directory exists
+          if [ ! -d "${{ steps.build.outputs.build-path }}" ]; then
+            echo "Error: Build directory not found"
+            exit 1
+          fi
+          
+          # Check if UF2 file was created
+          if [ ! -f "${{ steps.build.outputs.build-path }}/test_project.uf2" ]; then
+            echo "Error: UF2 file not found"
+            exit 1
+          fi
+          
+          echo "Build successful!"
+      
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-ubuntu
+          path: ${{ steps.build.outputs.build-path }}/*.uf2
+
+#  test-basic-windows:
+#    name: Basic Build (Windows)
+#    runs-on: windows-latest
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#      
+#      - name: Build Test Project
+#        id: build
+#        uses: ./
+#        with:
+#          source-dir: test
+#      
+#      - name: Verify Build Outputs
+#        shell: pwsh
+#        run: |
+#          Write-Host "Build path: ${{ steps.build.outputs.build-path }}"
+#          Write-Host "SDK path: ${{ steps.build.outputs.pico-sdk-path }}"
+#          Write-Host "Picotool path: ${{ steps.build.outputs.picotool-path }}"
+#          
+#          # Check if build directory exists
+#          if (-not (Test-Path "${{ steps.build.outputs.build-path }}")) {
+#            Write-Host "Error: Build directory not found"
+#            exit 1
+#          }
+#          
+#          # Check if UF2 file was created
+#          if (-not (Test-Path "${{ steps.build.outputs.build-path }}/test_project.uf2")) {
+#            Write-Host "Error: UF2 file not found"
+#            exit 1
+#          }
+#          
+#          Write-Host "Build successful!"
+#      
+#      - name: Upload Artifacts
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: firmware-windows
+#          path: ${{ steps.build.outputs.build-path }}/*.uf2
+
+#  test-custom-versions:
+#    name: Custom SDK & Toolchain Versions
+#    runs-on: ubuntu-latest
+#    strategy:
+#      matrix:
+#        sdk-version: ['1.5.1', 'master']
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#      
+#      - name: Build with SDK ${{ matrix.sdk-version }}
+#        uses: ./
+#        with:
+#          source-dir: test
+#          pico-sdk-version: ${{ matrix.sdk-version }}
+#          picotool-version: 'master'
+
+#  test-custom-toolchain:
+#    name: Custom Toolchain Version (Windows)
+#    runs-on: windows-latest
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#      
+#      - name: Build with Custom Toolchain
+#        uses: ./
+#        with:
+#          source-dir: test
+#          toolchain-version: '13.2.rel1'
+
+#  test-custom-directories:
+#    name: Custom Source and Build Directories
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#      
+#      - name: Build with Custom Paths
+#        id: build
+#        uses: ./
+#        with:
+#          source-dir: test
+#          build-dir: custom-build
+#      
+#      - name: Verify Custom Build Path
+#        shell: bash
+#        run: |
+#          if [[ ! "${{ steps.build.outputs.build-path }}" == *"custom-build"* ]]; then
+#            echo "Error: Custom build directory not used"
+#            exit 1
+#          fi
+#          echo "Custom build path verified!"
+
+#  test-cmake-args:
+#    name: Custom CMake Arguments
+#    runs-on: ubuntu-latest
+#    steps:
+#      - name: Checkout
+#        uses: actions/checkout@v4
+#      
+#      - name: Build with CMake Args
+#        uses: ./
+#        with:
+#          source-dir: test
+#          cmake-args: '-DCMAKE_BUILD_TYPE=Debug -DPICO_BOARD=pico'
