@@ -81,6 +81,6 @@ runs:
         git --version
         cmake --version
         picotool version
-        pioasm --version
+        pioasm # pioasm doesn't have a version flag, so just run it to confirm it's working
         arm-none-eabi-gcc --version
         riscv64-unknown-elf-gcc --version
