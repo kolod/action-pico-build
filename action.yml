@@ -31,35 +31,35 @@ runs:
         git config --global advice.detachedHead false
         git clone --branch=2.2.0 --depth=1 https://github.com/raspberrypi/pico-sdk.git
         git -C pico-sdk submodule update --init --recursive
-        echo "PICO_SDK_PATH=${{ inputs.install-path }}/pico-sdk" >> $GITHUB_ENV
+        echo "PICO_SDK_PATH=$(realpath ${{ inputs.install-path }}/pico-sdk)" >> $GITHUB_ENV
 
     - name: 'Install picotool'
       if: runner.os == 'Linux'
       shell: bash
       run: |
         curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/picotool-2.0.0-x86_64-lin.tar.gz | tar xz -C ${{ inputs.install-path }}
-        echo "${{ inputs.install-path }}/picotool" >> $GITHUB_PATH
+        echo "$(realpath ${{ inputs.install-path }}/picotool)" >> $GITHUB_PATH
 
     - name: 'Install pico-sdk-tools'
       if: runner.os == 'Linux'
       shell: bash
       run: |
         curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/pico-sdk-tools-2.0.0-x86_64-lin.tar.gz | tar xz -C ${{ inputs.install-path }}
-        echo "${{ inputs.install-path }}/pico-sdk-tools" >> $GITHUB_PATH
+        echo "$(realpath ${{ inputs.install-path }}/pioasm)" >> $GITHUB_PATH
 
     - name: 'Install risc-v toolchain'
       if: runner.os == 'Linux'
       shell: bash
       run: |
-        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/riscv-toolchain-14-x86_64-lin.tar.gz | tar xz -C ${{ inputs.install-path }}
-        echo "${{ inputs.install-path }}/riscv-toolchain/bin" >> $GITHUB_PATH
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/riscv-toolchain-14-x86_64-lin.tar.gz | tar xz -C ${{ inputs.install-path }}/riscv-toolchain-14-x86_64-riscv32-unknown-elf
+        echo "$(realpath ${{ inputs.install-path }}/riscv-toolchain)" >> $GITHUB_PATH
 
     - name: 'Install arm-none-eabi toolchain'
       if: runner.os == 'Linux'
       shell: bash
       run: |
-        curl -L https://developer.arm.com/-/media/Files/downloads/gnu/13.3.rel1/binrel/arm-gnu-toolchain-13.3.rel1-x86_64-arm-none-eabi.tar.xz | tar xJC ${{ inputs.install-path }}
-        echo "${{ inputs.install-path }}/arm-gnu-toolchain/bin" >> $GITHUB_PATH
+        curl -L https://developer.arm.com/-/media/Files/downloads/gnu/13.3.rel1/binrel/arm-gnu-toolchain-13.3.rel1-x86_64-arm-none-eabi.tar.xz | tar xJC ${{ inputs.install-path }}/arm-gnu-toolchain --strip-components=1
+        echo "$(realpath ${{ inputs.install-path }}/arm-gnu-toolchain)" >> $GITHUB_PATH
 
     - name: 'Print sdk installation path as tree'
       shell: bash
@@ -78,7 +78,7 @@ runs:
       run: |
         git --version
         cmake --version
-        picotool --version
+        picotool version
         pioasm --version
         arm-none-eabi-gcc --version
         riscv64-unknown-elf-gcc --version
