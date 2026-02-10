@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+from pathlib import Path
+from packaging.version import Version, InvalidVersion
+from packaging.specifiers import SpecifierSet
+
 import argparse
 import subprocess
 import dataclasses
@@ -10,7 +14,7 @@ import tempfile
 import urllib.request
 import yaml
 import zipfile
-
+import rich
 
 class PicoInstaller:
     """Installer for Raspberry Pi Pico SDK tools and dependencies.
@@ -43,28 +47,15 @@ class PicoInstaller:
             FileNotFoundError: If pico-tools-urls.yaml is not found
             yaml.YAMLError: If the YAML configuration file is malformed
         """
+        # Initialize installation directory and Rich console for output
+        self.console = rich.console.Console()
+
         # Detect operating system
         self._os_type = platform.system().lower()
         if self._os_type == 'darwin':
             self._os_type = 'macos'
         elif self._os_type not in ['linux', 'windows']:
             raise ValueError(f"Unsupported operating system: {self._os_type}. Only Linux, Windows, and macOS are supported.")
-        
-        # Installation directory for the SDK, Picotool, and toolchain (platform-specific)
-        if self._os_type == 'windows':
-            self._install_dir = os.path.join(os.environ.get('USERPROFILE', '~'), '.pico-sdk')
-        else:
-            self._install_dir = "~/.pico-sdk"
-
-        # Define available pico-sdk versions
-        self._pico_sdk_available_versions = [
-            "2.0.0", "2.1.1", "2.2.0"
-        ]
-
-        # Define available toolchain versions
-        self._toolchain_available_versions = [
-            "12.2.rel1", "13.2.rel1", "14.2.rel1"
-        ]
 
         # Check if the architecture is supported (use platform.machine() for cross-platform compatibility)
         self._arch = platform.machine()
@@ -77,10 +68,10 @@ class PicoInstaller:
         if self._arch not in ["x86_64", "aarch64"]:
             raise ValueError(f"Unsupported architecture: {self._arch}. Only x86_64 and aarch64 are supported.")
 
-        # Load URLs from YAML file
-        yaml_path = os.path.join(os.path.dirname(__file__), "pico-tools-urls.yaml")
+        # Load data from YAML file
+        yaml_path = Path(__file__).parent / "data.yaml"
         with open(yaml_path, 'r') as f:
-            self._urls = yaml.safe_load(f)
+            self._data = yaml.safe_load(f)
 
     def get_url(self, tool: str, sdk_version: str, arch: str, os_type: str = 'linux'):
         """Retrieve the download URL for a specific tool from the YAML configuration.
@@ -191,7 +182,90 @@ class PicoInstaller:
         finally:
             os.remove(tmp_path)
 
-    def install_prerequisites(self):
+    def is_cmake_available(self, versions: str = None) -> bool:        
+        """Check if CMake is available in the system PATH.
+        
+        This method attempts to run 'cmake --version' to determine if CMake is
+        installed and accessible. It returns True if CMake is found, and False
+        otherwise. If a supported version is specified, it also checks if the
+        installed version meets the requirement.
+        
+        Args:
+            versions (str, optional): Supported CMake version (e.g., "3.18.0")
+        
+        Returns:
+            bool: True if CMake is available and meets the minimum version, False otherwise
+        """
+        try:
+            result = subprocess.run(["cmake", "--version"], check=True, capture_output=True, text=True)
+            if versions:
+                version = packaging.version.Version(result.stdout.splitlines()[0].split()[-1])
+                spec = packaging.specifiers.SpecifierSet(versions)
+                if version not in spec:
+                    return False
+            return True
+        except subprocess.CalledProcessError:
+            return False
+        except FileNotFoundError:
+            return False
+        except packaging.version.InvalidVersion:
+            return False
+
+    def is_git_available(self, versions: str = None) -> bool:
+        """Check if Git is available in the system PATH.
+        
+        This method attempts to run 'git --version' to determine if Git is
+        installed and accessible. It returns True if Git is found, and False
+        otherwise.
+        
+        Returns:
+            bool: True if Git is available, False if not
+        """
+        try:
+            result = subprocess.run(["git", "--version"], check=True, capture_output=True, text=True)
+            if versions:
+                version = packaging.version.Version(result.stdout.splitlines()[0].split()[-1])
+                spec = packaging.specifiers.SpecifierSet(versions)
+                if version not in spec:
+                    return False
+            return True
+        except subprocess.CalledProcessError:
+            return False
+        except FileNotFoundError:
+            return False
+        except packaging.version.InvalidVersion:
+            return False
+
+    def is_arm_toolchain_available(self, versions: str = None) -> bool:
+        """Check if the ARM GCC toolchain is available in the system PATH.
+        
+        This method attempts to run 'arm-none-eabi-gcc --version' to determine if
+        the ARM GCC toolchain is installed and accessible. It returns True if the
+        toolchain is found, and False otherwise. If a supported version is specified,
+        it also checks if the installed version meets the requirement.
+        
+        Args:
+            versions (str, optional): Supported ARM toolchain version (e.g., "14.2.rel1")
+        
+        Returns:
+            bool: True if the ARM toolchain is available and meets the minimum version, False otherwise
+        """
+        try:
+            result = subprocess.run(["arm-none-eabi-gcc", "--version"], check=True, capture_output=True, text=True)
+            if versions:
+                version = packaging.version.Version(result.stdout.splitlines()[0].split()[-1])
+                spec = packaging.specifiers.SpecifierSet(versions)
+                if version not in spec:
+                    return False
+            return True
+        except subprocess.CalledProcessError:
+            return False
+        except FileNotFoundError:
+            return False
+        except packaging.version.InvalidVersion:
+            return False
+
+    def install_prerequisites(self, sdk_version: str):
         """Install system-level prerequisites required for Pico SDK development.
         
         This method installs essential build tools and dependencies needed to compile
@@ -207,34 +281,65 @@ class PicoInstaller:
             - Linux: Requires sudo privileges, uses apt-get
             - Windows: Assumes tools are already installed or installed via other means
             - macOS: Uses Homebrew if available
+
+        Args:
+            sdk_version (str): SDK version to determine specific prerequisites if needed
         
         Raises:
             subprocess.CalledProcessError: If installation commands fail
             PermissionError: If sudo access is denied (Linux/macOS)
         """
-        print("Installing prerequisites...")
-        
+        self.console.print("[yellow]Installing prerequisites...[/yellow]")
+
+        # Get required CMake version from YAML configuration for the specified SDK version
+        required_cmake_version = self._data['versions'][sdk_version]['prerequisites']['cmake']
+        required_arm_toolchain_version = self._data['versions'][sdk_version]['prerequisites']['arm-toolchain']
+
+
+        # Check for prerequisites and print status
+        needed_prerequisites = []
+        if self.is_cmake_available(required_cmake_version):
+            self.console.print(f"  [green]✓[/green] CMake is available and meets version requirement ({required_cmake_version})")
+        else:
+            self.console.print(f"  [yellow]⊘ CMake is not available or does not meet version requirement ({required_cmake_version})[/yellow]")
+            needed_prerequisites.append("cmake")
+
+        if self.is_git_available():
+            self.console.print(f"  [green]✓[/green] Git is available")
+        else:
+            self.console.print(f"  [yellow]⊘ Git is not available[/yellow]")
+            needed_prerequisites.append("git")
+
+        if self.is_arm_toolchain_available(required_arm_toolchain_version):
+            self.console.print(f"  [green]✓[/green] ARM toolchain is available and meets version requirement ({required_arm_toolchain_version})")
+        else:
+            self.console.print(f"  [yellow]⊘ ARM toolchain is not available or does not meet version requirement ({required_arm_toolchain_version})[/yellow]")
+            needed_prerequisites.append("arm-toolchain")
+
+        if not needed_prerequisites:
+            self.console.print("  [green]✓[/green] All prerequisites are already installed")
+            return
+
         if self._os_type == 'linux':
-            print("Installing Linux prerequisites via apt...")
             subprocess.run(["sudo", "apt-get", "update"], check=True)
             subprocess.run(["sudo", "apt-get", "install", "-y", "git", "cmake", "build-essential", "curl"], check=True)
         elif self._os_type == 'windows':
-            print("Windows detected: Skipping prerequisite installation.")
-            print("Please ensure the following are installed:")
-            print("  - CMake (https://cmake.org/download/)")
-            print("  - Git (https://git-scm.com/download/win)")
-            print("  - Build Tools for Visual Studio (https://visualstudio.microsoft.com/downloads/)")
+            self.console.print("Windows detected: Skipping prerequisite installation.")
+            self.console.print("Please ensure the following are installed:")
+            self.console.print("  - CMake (https://cmake.org/download/)")
+            self.console.print("  - Git (https://git-scm.com/download/win)")
+            self.console.print("  - Build Tools for Visual Studio (https://visualstudio.microsoft.com/downloads/)")
         elif self._os_type == 'macos':
-            print("Installing macOS prerequisites via Homebrew...")
+            self.console.print("Installing macOS prerequisites via Homebrew...")
             try:
                 # Check if brew is available
                 subprocess.run(["brew", "--version"], check=True, capture_output=True)
                 subprocess.run(["brew", "install", "git", "cmake"], check=True)
             except (subprocess.CalledProcessError, FileNotFoundError):
-                print("Homebrew not found. Please install:")
-                print("  - Homebrew: https://brew.sh")
-                print("  - CMake: brew install cmake")
-                print("  - Git: brew install git")
+                self.console.print("[yellow]Homebrew not found. Please install Homebrew and the required tools:[/yellow]")
+                self.console.print("  - Homebrew: https://brew.sh")
+                self.console.print("  - CMake: brew install cmake")
+                self.console.print("  - Git: brew install git")
 
     def install_pico_sdk_tools(self, version: str):
         """Download and install all Pico SDK tools for the specified version.
@@ -273,8 +378,8 @@ class PicoInstaller:
             # Get URL for the tool
             url = self.get_url(tool_key, version, self._arch, self._os_type)
             
-            # Determine installation path
-            install_path = os.path.join(self._install_dir, tool_dir)
+            # Determine installation path using new structure: ./.pico-sdk/{sdk-version}/{os_type}/{tool}/
+            install_path = os.path.join(self._install_dir, version, self._os_type, tool_dir)
             
             # Download and extract
             self.load_and_unpack_url(url, install_path)
@@ -283,7 +388,7 @@ class PicoInstaller:
 
         print(f"\n✓ All Pico SDK tools installed successfully")
 
-    def set_environment_variables(self):
+    def set_environment_variables(self, version: str):
         """Set up environment variables for installed Pico SDK tools.
         
         This method configures environment variables required for building Pico projects:
@@ -292,6 +397,9 @@ class PicoInstaller:
         
         For GitHub Actions, it also writes to GITHUB_ENV and GITHUB_PATH files if they exist,
         making the variables available to subsequent workflow steps.
+        
+        Args:
+            version (str): SDK version for constructing paths
         
         Side effects:
             - Updates os.environ with new PATH and PICO_SDK_PATH
@@ -306,12 +414,13 @@ class PicoInstaller:
         pico_sdk_path = os.path.join(install_dir, 'pico-sdk')
         os.environ['PICO_SDK_PATH'] = pico_sdk_path
         
-        # Build PATH additions
+        # Build PATH additions using new structure
+        version_os_path = os.path.join(install_dir, version, self._os_type)
         path_additions = [
-            os.path.join(install_dir, 'openocd', 'bin'),
-            os.path.join(install_dir, 'picotool'),
-            os.path.join(install_dir, 'picosdktools'),
-            os.path.join(install_dir, 'riscv-toolchain', 'bin'),
+            os.path.join(version_os_path, 'openocd', 'bin'),
+            os.path.join(version_os_path, 'picotool'),
+            os.path.join(version_os_path, 'picosdktools'),
+            os.path.join(version_os_path, 'riscv-toolchain', 'bin'),
         ]
         
         # Update PATH
@@ -400,6 +509,7 @@ class PicoInstaller:
         installation of prerequisites, Pico SDK, and toolchain.
         
         Command-line arguments:
+            --install-dir: Base directory for installation (default: ~/.pico-sdk)
             --sdk-version: Pico SDK version to install (default: 2.2.0)
             --toolchain-version: ARM GCC toolchain version (default: 14.2.rel1)
         
@@ -411,20 +521,19 @@ class PicoInstaller:
             $ python install.py --sdk-version 2.2.0 --toolchain-version 14.2.rel1
         """
         # Parse command-line arguments
-        parser = argparse.ArgumentParser(
-            description=f"Install the Pico SDK and toolchain (detected: {self._os_type}/{self._arch})"
-        )
+        parser = argparse.ArgumentParser(description=f"Install the Pico SDK and toolchain (detected: {self._os_type}/{self._arch})")
+        parser.add_argument("--install-dir", default="~/.pico-sdk", help="Base directory for installation (default: ~/.pico-sdk)")
         parser.add_argument("--sdk-version", default="2.2.0", help="Version of the Pico SDK to install (default: 2.2.0)")
         parser.add_argument("--toolchain-version", default="14.2.rel1", help="Version of the toolchain to install (default: 14.2.rel1)")
-        args = parser.parse_args()
+        self.args = parser.parse_args()
         
         print(f"Installing for {self._os_type} ({self._arch})...")
-        print(f"Installation directory: {self._install_dir}\n")
+        print(f"Installation directory: {self.args.install_dir}\n")
 
         # Validate Pico SDK version
-        if args.sdk_version not in self._pico_sdk_available_versions:
+        if self.args.sdk_version not in self._pico_sdk_available_versions:
             raise ValueError('\n'.join([
-                f"Pico SDK version {args.sdk_version} is not available.",
+                f"Pico SDK version {self.args.sdk_version} is not available.",
                 f"Available versions: {', '.join(self._pico_sdk_available_versions)}"
             ]))
 
@@ -442,7 +551,7 @@ class PicoInstaller:
         self.install_toolchain(args.toolchain_version)
         
         # Set up environment variables
-        self.set_environment_variables()
+        self.set_environment_variables(args.sdk_version)
         
         print("\n" + "="*60)
         print("✓ Installation complete!")
@@ -450,10 +559,10 @@ class PicoInstaller:
         print("\nTo use the tools in a new shell, run:")
         if self._os_type == 'windows':
             print(f'  set PICO_SDK_PATH={os.path.expanduser(self._install_dir)}\\pico-sdk')
-            print(f'  set PATH={os.path.expanduser(self._install_dir)}\\openocd\\bin;%PATH%')
+            print(f'  set PATH={os.path.expanduser(self._install_dir)}\\{args.sdk_version}\\{self._os_type}\\openocd\\bin;%PATH%')
         else:
             print(f'  export PICO_SDK_PATH={os.path.expanduser(self._install_dir)}/pico-sdk')
-            print(f'  export PATH={os.path.expanduser(self._install_dir)}/openocd/bin:$PATH')
+            print(f'  export PATH={os.path.expanduser(self._install_dir)}/{args.sdk_version}/{self._os_type}/openocd/bin:$PATH')
 
 
 if __name__ == "__main__":
