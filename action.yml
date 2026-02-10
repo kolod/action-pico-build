@@ -8,6 +8,21 @@ inputs:
     required: false
     default: '${{ github.workspace }}/../../../.pico-sdk'
 
+  source-dir:
+    description: 'Path to the source directory containing the CMakeLists.txt file (default: .).'
+    required: false
+    default: '${{ github.workspace }}'
+
+  build-dir:
+    description: 'Path to the build directory (default: <source-dir>/build).'
+    required: false
+    default: 'build'
+
+  cmake-args:
+    description: 'Additional arguments to pass to CMake (default: -DCMAKE_BUILD_TYPE=Release).'
+    required: false
+    default: ''
+
 runs:
   using: composite
   steps:
@@ -64,6 +79,7 @@ runs:
         echo "$(realpath ${{ inputs.install-path }}/arm-gnu-toolchain/bin)" >> $GITHUB_PATH
 
     - name: 'Print sdk installation path as tree'
+      if: runner.os == 'Linux'
       shell: bash
       run: |
         echo "Pico SDK installed at: ${{ inputs.install-path }}"
@@ -75,11 +91,17 @@ runs:
         echo "PICO_SDK_PATH=$PICO_SDK_PATH"
         echo "PATH=$PATH"
 
-    - name: 'Print tools versions'
+    - name: 'Configure and build project'
       shell: bash
       run: |
-        git --version
-        cmake --version
-        picotool version
-        arm-none-eabi-gcc --version
-        riscv32-unknown-elf-gcc --version
+        mkdir -p ${{ inputs.build-dir }}
+        cd ${{ inputs.build-dir }}
+        cmake -DCMAKE_BUILD_TYPE=Release ${{ inputs.cmake-args }} ${{ inputs.source-dir }}
+        cmake --build . --config Release
+
+    - name: 'Store uf2 and elf files as artifacts'
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        mkdir -p ${{ github.workspace }}/artifacts
+        find ${{ inputs.build-dir }} -type f -name '*.uf2' -o -name '*.elf' -exec cp {} ${{ github.workspace }}/artifacts/ \;
