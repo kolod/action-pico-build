@@ -37,29 +37,29 @@ runs:
       if: runner.os == 'Linux'
       shell: bash
       run: |
-        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/picotool-2.0.0-x86_64-lin.tar.gz | tar xz -C ${{ inputs.install-path }} --strip-components=1
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/picotool-2.0.0-x86_64-lin.tar.gz | tar xz -C ${{ inputs.install-path }}
         echo "${{ inputs.install-path }}/picotool" >> $GITHUB_PATH
 
     - name: 'Install pico-sdk-tools'
       if: runner.os == 'Linux'
       shell: bash
       run: |
-        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/pico-sdk-tools-2.0.0-x86_64-lin.tar.gz | tar xz -C ${{ inputs.install-path }} --strip-components=1
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/pico-sdk-tools-2.0.0-x86_64-lin.tar.gz | tar xz -C ${{ inputs.install-path }}
         echo "${{ inputs.install-path }}/pico-sdk-tools" >> $GITHUB_PATH
 
     - name: 'Install risc-v toolchain'
       if: runner.os == 'Linux'
       shell: bash
       run: |
-        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/riscv-toolchain-14-x86_64-lin.tar.gz | tar xz -C ${{ inputs.install-path }} --strip-components=1
-        echo "${{ inputs.install-path }}/riscv-toolchain" >> $GITHUB_PATH
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/riscv-toolchain-14-x86_64-lin.tar.gz | tar xz -C ${{ inputs.install-path }}
+        echo "${{ inputs.install-path }}/riscv-toolchain/bin" >> $GITHUB_PATH
 
     - name: 'Install arm-none-eabi toolchain'
       if: runner.os == 'Linux'
       shell: bash
       run: |
-        curl -L https://developer.arm.com/-/media/Files/downloads/gnu/13.3.rel1/binrel/arm-gnu-toolchain-13.3.rel1-x86_64-arm-none-eabi.tar.xz | tar xJC ${{ inputs.install-path }} --strip-components=1
-        echo "${{ inputs.install-path }}/arm-gnu-toolchain" >> $GITHUB_PATH
+        curl -L https://developer.arm.com/-/media/Files/downloads/gnu/13.3.rel1/binrel/arm-gnu-toolchain-13.3.rel1-x86_64-arm-none-eabi.tar.xz | tar xJC ${{ inputs.install-path }}
+        echo "${{ inputs.install-path }}/arm-gnu-toolchain/bin" >> $GITHUB_PATH
 
     - name: 'Print sdk installation path as tree'
       shell: bash
