@@ -28,7 +28,7 @@ runs:
       shell: bash
       run: |
         cd ${{ inputs.install-path }}
-        git config advice.detachedHead false
+        git config --global advice.detachedHead false
         git clone --branch=2.2.0 --depth=1 https://github.com/raspberrypi/pico-sdk.git
         git -C pico-sdk submodule update --init --recursive
         echo "PICO_SDK_PATH=${{ inputs.install-path }}/pico-sdk" >> $GITHUB_ENV
