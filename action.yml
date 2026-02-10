@@ -49,7 +49,7 @@ runs:
 
     - name: 'Install risc-v toolchain'
       if: runner.os == 'Linux'
-      shell: bash`
+      shell: bash
       run: |
         mkdir -p ${{ inputs.install-path }}/riscv-toolchain
         curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/riscv-toolchain-14-x86_64-lin.tar.gz | tar xz -C ${{ inputs.install-path }}/riscv-toolchain
