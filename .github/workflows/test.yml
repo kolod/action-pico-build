@@ -22,4 +22,6 @@ jobs:
       
       - name: Test action with default install path
         uses: ./
+        with:
+          source-dir: 'test-project'
   
