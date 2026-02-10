@@ -1,0 +1,73 @@
+name: 'Pico Build Action'
+description: 'GitHub Action to build Pico projects using the Pico SDK.'
+author: 'Olexandr Kolodkin'
+
+inputs:
+  install-path:
+    description: 'Path to install the Pico SDK (default: $HOME/.pico-sdk)'
+    required: false
+    default: '$HOME/.pico-sdk'
+
+runs:
+  using: composite
+  steps:
+
+    - name: 'Install pre-requisites'
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential gcc-arm-none-eabi
+
+    - name: 'Get Pico SDK'
+      shell: bash
+      run: |
+        cd ${{ inputs.install-path }}
+        git config advice.detachedHead false
+        git clone --branch=2.2.0 --depth=1 https://github.com/raspberrypi/pico-sdk.git
+        git -C pico-sdk submodule update --init --recursive
+        echo "PICO_SDK_PATH=${{ inputs.install-path }}/pico-sdk" >> $GITHUB_ENV
+
+    - name: 'Install picotool'
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/picotool-2.0.0-x86_64-lin.tar.gz | tar xz -C ${{ inputs.install-path }}/.pico-sdk --strip-components=1
+        echo "${{ inputs.install-path }}/.pico-sdk/picotool" >> $GITHUB_PATH
+
+    - name: 'Install pico-sdk-tools'
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/pico-sdk-tools-2.0.0-x86_64-lin.tar.gz | tar xz -C ${{ inputs.install-path }}/.pico-sdk --strip-components=1
+        echo "${{ inputs.install-path }}/.pico-sdk/pico-sdk-tools" >> $GITHUB_PATH
+
+    - name: 'Install risc-v toolchain'
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/riscv-toolchain-14-x86_64-lin.tar.gz | tar xz -C ${{ inputs.install-path }}/.pico-sdk --strip-components=1
+        echo "${{ inputs.install-path }}/.pico-sdk/riscv-toolchain" >> $GITHUB_PATH
+
+    - name: 'Install arm-none-eabi toolchain'
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        curl -L https://developer.arm.com/-/media/Files/downloads/gnu/13.3.rel1/binrel/arm-gnu-toolchain-13.3.rel1-x86_64-arm-none-eabi.tar.xz | tar xJC ${{ inputs.install-path }}/.pico-sdk --strip-components=1
+        echo "${{ inputs.install-path }}/.pico-sdk/arm-gnu-toolchain" >> $GITHUB_PATH
+
+    - name: 'Print tools versions'
+      shell: bash
+      run: |
+        git --version
+        cmake --version
+        picotool --version
+        pioasm --version
+        arm-none-eabi-gcc --version
+        riscv64-unknown-elf-gcc --version
+
+    - name: 'Print sdk installation path as tree'
+      shell: bash
+      run: |
+        echo "Pico SDK installed at: ${{ inputs.install-path }}/.pico-sdk"
+        tree -L 2 ${{ inputs.install-path }}/.pico-sdk
