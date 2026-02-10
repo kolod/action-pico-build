@@ -61,6 +61,18 @@ runs:
         curl -L https://developer.arm.com/-/media/Files/downloads/gnu/13.3.rel1/binrel/arm-gnu-toolchain-13.3.rel1-x86_64-arm-none-eabi.tar.xz | tar xJC ${{ inputs.install-path }} --strip-components=1
         echo "${{ inputs.install-path }}/arm-gnu-toolchain" >> $GITHUB_PATH
 
+    - name: 'Print sdk installation path as tree'
+      shell: bash
+      run: |
+        echo "Pico SDK installed at: ${{ inputs.install-path }}"
+        tree -L 2 ${{ inputs.install-path }}
+
+    - name: 'Print environment variables'
+      shell: bash
+      run: |
+        echo "PICO_SDK_PATH=$PICO_SDK_PATH"
+        echo "PATH=$PATH"
+
     - name: 'Print tools versions'
       shell: bash
       run: |
@@ -70,9 +82,3 @@ runs:
         pioasm --version
         arm-none-eabi-gcc --version
         riscv64-unknown-elf-gcc --version
-
-    - name: 'Print sdk installation path as tree'
-      shell: bash
-      run: |
-        echo "Pico SDK installed at: ${{ inputs.install-path }}"
-        tree -L 2 ${{ inputs.install-path }}
