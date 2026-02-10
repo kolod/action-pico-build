@@ -53,7 +53,7 @@ runs:
       run: |
         mkdir -p ${{ inputs.install-path }}/riscv-toolchain
         curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/riscv-toolchain-14-x86_64-lin.tar.gz | tar xz -C ${{ inputs.install-path }}/riscv-toolchain
-        echo "$(realpath ${{ inputs.install-path }}/riscv-toolchain)" >> $GITHUB_PATH
+        echo "$(realpath ${{ inputs.install-path }}/riscv-toolchain/bin)" >> $GITHUB_PATH
 
     - name: 'Install arm-none-eabi toolchain'
       if: runner.os == 'Linux'
@@ -61,7 +61,7 @@ runs:
       run: |
         mkdir -p ${{ inputs.install-path }}/arm-gnu-toolchain
         curl -L https://developer.arm.com/-/media/Files/downloads/gnu/13.3.rel1/binrel/arm-gnu-toolchain-13.3.rel1-x86_64-arm-none-eabi.tar.xz | tar xJC ${{ inputs.install-path }}/arm-gnu-toolchain --strip-components=1
-        echo "$(realpath ${{ inputs.install-path }}/arm-gnu-toolchain)" >> $GITHUB_PATH
+        echo "$(realpath ${{ inputs.install-path }}/arm-gnu-toolchain/bin)" >> $GITHUB_PATH
 
     - name: 'Print sdk installation path as tree'
       shell: bash
