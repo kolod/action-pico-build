@@ -82,4 +82,4 @@ runs:
         cmake --version
         picotool version
         arm-none-eabi-gcc --version
-        riscv64-unknown-elf-gcc --version
+        riscv32-unknown-elf-gcc --version
