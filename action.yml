@@ -6,11 +6,16 @@ inputs:
   install-path:
     description: 'Path to install the Pico SDK (default: <user home>/.pico-sdk).'
     required: false
-    default: '${{ github.workspace }}/../.pico-sdk'
+    default: '${{ github.workspace }}/../../../.pico-sdk'
 
 runs:
   using: composite
   steps:
+
+    - name: 'Create install directory'
+      shell: bash
+      run: |
+        mkdir -p ${{ inputs.install-path }}
 
     - name: 'Install pre-requisites'
       if: runner.os == 'Linux'
