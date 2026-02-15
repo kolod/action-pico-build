@@ -140,7 +140,9 @@ runs:
       if: runner.os == 'macOS'
       shell: pwsh
       run: |
-        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/picotool-2.2.0-a4-mac.tar.gz | tar xz -C "${{ inputs.install-path }}"
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/picotool-2.2.0-a4-mac.zip -o "${{ inputs.install-path }}/picotool.zip"
+        Expand-Archive -Path "${{ inputs.install-path }}/picotool.zip" -DestinationPath "${{ inputs.install-path }}" -Force
+        Remove-Item "${{ inputs.install-path }}/picotool.zip" -Force
         $picotoolPath = Resolve-Path "${{ inputs.install-path }}/picotool" | Select-Object -ExpandProperty Path
         "$picotoolPath" | Out-File -FilePath $env:GITHUB_PATH -Append
 
@@ -148,7 +150,9 @@ runs:
       if: runner.os == 'macOS'
       shell: pwsh
       run: |
-        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/pico-sdk-tools-2.2.0-mac.tar.gz | tar xz -C "${{ inputs.install-path }}"
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/pico-sdk-tools-2.2.0-mac.zip -o "${{ inputs.install-path }}/pico-sdk-tools.zip"
+        Expand-Archive -Path "${{ inputs.install-path }}/pico-sdk-tools.zip" -DestinationPath "${{ inputs.install-path }}" -Force
+        Remove-Item "${{ inputs.install-path }}/pico-sdk-tools.zip" -Force
         $pioasmPath = Resolve-Path "${{ inputs.install-path }}/pioasm" | Select-Object -ExpandProperty Path
         "$pioasmPath" | Out-File -FilePath $env:GITHUB_PATH -Append
 
@@ -157,7 +161,9 @@ runs:
       shell: pwsh
       run: |
         New-Item -ItemType Directory -Force -Path "${{ inputs.install-path }}/riscv-toolchain"
-        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/riscv-toolchain-15-mac.tar.gz | tar xz -C "${{ inputs.install-path }}/riscv-toolchain"
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/riscv-toolchain-15-mac.zip -o "${{ inputs.install-path }}/riscv-toolchain/riscv-toolchain.zip"
+        Expand-Archive -Path "${{ inputs.install-path }}/riscv-toolchain/riscv-toolchain.zip" -DestinationPath "${{ inputs.install-path }}/riscv-toolchain" -Force
+        Remove-Item "${{ inputs.install-path }}/riscv-toolchain/riscv-toolchain.zip" -Force
         $riscvPath = Resolve-Path "${{ inputs.install-path }}/riscv-toolchain/bin" | Select-Object -ExpandProperty Path
         "$riscvPath" | Out-File -FilePath $env:GITHUB_PATH -Append
 
