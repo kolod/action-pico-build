@@ -16,7 +16,7 @@ inputs:
   build-dir:
     description: 'Path to the build directory (default: <source-dir>/build).'
     required: false
-    default: 'build'
+    default: 'build' 
 
   cmake-args:
     description: 'Additional arguments to pass to CMake (default: -DCMAKE_BUILD_TYPE=Release).'
@@ -98,10 +98,8 @@ runs:
     - name: 'Configure and build project'
       shell: pwsh
       run: |
-        New-Item -ItemType Directory -Force -Path ${{ inputs.build-dir }}
-        Set-Location ${{ inputs.build-dir }}
-        cmake -DCMAKE_BUILD_TYPE=Release ${{ inputs.cmake-args }} ${{ inputs.source-dir }}
-        cmake --build . --config Release
+        cmake -B ${{ inputs.build-dir }} -S ${{ inputs.source-dir }} -DCMAKE_BUILD_TYPE=Release ${{ inputs.cmake-args }}
+        cmake --build ${{ inputs.build-dir }} --config Release
 
     - name: 'Store uf2 and elf files as artifacts'
       shell: pwsh
