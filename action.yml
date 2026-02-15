@@ -87,7 +87,7 @@ runs:
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
-        Invoke-WebRequest -Uri "https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/picotool-2.2.0-a4-x86-win.zip" -OutFile "${{ inputs.install-path }}/picotool.zip"
+        Invoke-WebRequest -Uri "https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/picotool-2.2.0-a4-x64-win.zip" -OutFile "${{ inputs.install-path }}/picotool.zip"
         Expand-Archive -Path "${{ inputs.install-path }}/picotool.zip" -DestinationPath "${{ inputs.install-path }}" -Force
         Remove-Item "${{ inputs.install-path }}/picotool.zip"
         $picotoolPath = Resolve-Path "${{ inputs.install-path }}/picotool" | Select-Object -ExpandProperty Path
@@ -97,7 +97,7 @@ runs:
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
-        Invoke-WebRequest -Uri "https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/pico-sdk-tools-2.2.0-x86-win.zip" -OutFile "${{ inputs.install-path }}/pico-sdk-tools.zip"
+        Invoke-WebRequest -Uri "https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/pico-sdk-tools-2.2.0-x64-win.zip" -OutFile "${{ inputs.install-path }}/pico-sdk-tools.zip"
         Expand-Archive -Path "${{ inputs.install-path }}/pico-sdk-tools.zip" -DestinationPath "${{ inputs.install-path }}" -Force
         Remove-Item "${{ inputs.install-path }}/pico-sdk-tools.zip"
         $pioasmPath = Resolve-Path "${{ inputs.install-path }}/pioasm" | Select-Object -ExpandProperty Path
@@ -108,7 +108,7 @@ runs:
       shell: pwsh
       run: |
         New-Item -ItemType Directory -Force -Path "${{ inputs.install-path }}/riscv-toolchain"
-        Invoke-WebRequest -Uri "https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/riscv-toolchain-15-x86-win.zip" -OutFile "${{ inputs.install-path }}/riscv-toolchain.zip"
+        Invoke-WebRequest -Uri "https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/riscv-toolchain-15-x64-win.zip" -OutFile "${{ inputs.install-path }}/riscv-toolchain.zip"
         Expand-Archive -Path "${{ inputs.install-path }}/riscv-toolchain.zip" -DestinationPath "${{ inputs.install-path }}/riscv-toolchain" -Force
         Remove-Item "${{ inputs.install-path }}/riscv-toolchain.zip"
         $riscvPath = Resolve-Path "${{ inputs.install-path }}/riscv-toolchain/bin" | Select-Object -ExpandProperty Path
