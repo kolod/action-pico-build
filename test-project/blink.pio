@@ -1,0 +1,15 @@
+.program blink
+.wrap_target
+    pull block          ; pull on-time cycles into OSR
+    mov x, osr
+    pull block          ; pull off-time cycles into OSR
+    mov y, osr
+loop:
+    set pins, 1         ; drive pin high
+high_wait:
+    jmp x-- high_wait   ; wait while decrementing X
+    set pins, 0         ; drive pin low
+low_wait:
+    jmp y-- low_wait    ; wait while decrementing Y
+    jmp loop            ; repeat forever
+.wrap

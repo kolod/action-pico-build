@@ -19,3 +19,18 @@ target_link_libraries(blink pico_stdlib)
 
 # Create map/bin/hex file etc.
 pico_add_extra_outputs(blink)
+
+# PIO blink example
+pico_generate_pio_header(pio_blink ${CMAKE_CURRENT_LIST_DIR}/blink.pio)
+
+add_executable(pio_blink
+  pio_blink.c
+  blink.pio
+)
+
+target_link_libraries(pio_blink
+  pico_stdlib
+  hardware_pio
+)
+
+pico_add_extra_outputs(pio_blink)
