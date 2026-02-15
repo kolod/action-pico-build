@@ -1,5 +1,5 @@
 name: 'Pico Build Action'
-description: 'GitHub Action to build Pico projects using the Pico SDK.'
+description: 'GitHub Action to build Pico projects using the Pico SDK v.'
 author: 'Olexandr Kolodkin'
 
 inputs:
@@ -28,80 +28,83 @@ runs:
   steps:
 
     - name: 'Create install directory'
-      shell: bash
+      shell: pwsh
       run: |
-        mkdir -p ${{ inputs.install-path }}
+        New-Item -ItemType Directory -Force -Path "${{ inputs.install-path }}"
 
     - name: 'Install pre-requisites'
       if: runner.os == 'Linux'
-      shell: bash
+      shell: pwsh
       run: |
         sudo apt-get update
         sudo apt-get install -y cmake build-essential
 
     - name: 'Get Pico SDK'
-      shell: bash
+      shell: pwsh
       run: |
-        cd ${{ inputs.install-path }}
+        Set-Location "${{ inputs.install-path }}"
         git config --global advice.detachedHead false
         git clone --branch=2.2.0 --depth=1 https://github.com/raspberrypi/pico-sdk.git
         git -C pico-sdk submodule update --init --recursive
-        echo "PICO_SDK_PATH=$(realpath ${{ inputs.install-path }}/pico-sdk)" >> $GITHUB_ENV
+        $sdkPath = Resolve-Path "${{ inputs.install-path }}/pico-sdk" | Select-Object -ExpandProperty Path
+        "PICO_SDK_PATH=$sdkPath" | Out-File -FilePath $env:GITHUB_ENV -Append
 
     - name: 'Install picotool'
       if: runner.os == 'Linux'
-      shell: bash
+      shell: pwsh
       run: |
-        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/picotool-2.0.0-x86_64-lin.tar.gz | tar xz -C ${{ inputs.install-path }}
-        echo "$(realpath ${{ inputs.install-path }}/picotool)" >> $GITHUB_PATH
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-5/picotool-2.2.0-a4-x86_64-lin.tar.gz | tar xz -C "${{ inputs.install-path }}"
+        $picotoolPath = Resolve-Path "${{ inputs.install-path }}/picotool" | Select-Object -ExpandProperty Path
+        "$picotoolPath" | Out-File -FilePath $env:GITHUB_PATH -Append
 
     - name: 'Install pico-sdk-tools'
       if: runner.os == 'Linux'
-      shell: bash
+      shell: pwsh
       run: |
-        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/pico-sdk-tools-2.0.0-x86_64-lin.tar.gz | tar xz -C ${{ inputs.install-path }}
-        echo "$(realpath ${{ inputs.install-path }}/pioasm)" >> $GITHUB_PATH
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-5/pico-sdk-tools-2.2.0-x86_64-lin.tar.gz | tar xz -C "${{ inputs.install-path }}"
+        $pioasmPath = Resolve-Path "${{ inputs.install-path }}/pioasm" | Select-Object -ExpandProperty Path
+        "$pioasmPath" | Out-File -FilePath $env:GITHUB_PATH -Append
 
     - name: 'Install risc-v toolchain'
       if: runner.os == 'Linux'
-      shell: bash
+      shell: pwsh
       run: |
-        mkdir -p ${{ inputs.install-path }}/riscv-toolchain
-        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.0.0-5/riscv-toolchain-14-x86_64-lin.tar.gz | tar xz -C ${{ inputs.install-path }}/riscv-toolchain
-        echo "$(realpath ${{ inputs.install-path }}/riscv-toolchain/bin)" >> $GITHUB_PATH
+        New-Item -ItemType Directory -Force -Path "${{ inputs.install-path }}/riscv-toolchain"
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-5/riscv-toolchain-15-x86_64-lin.tar.gz | tar xz -C "${{ inputs.install-path }}/riscv-toolchain"
+        $riscvPath = Resolve-Path "${{ inputs.install-path }}/riscv-toolchain/bin" | Select-Object -ExpandProperty Path
+        "$riscvPath" | Out-File -FilePath $env:GITHUB_PATH -Append
 
     - name: 'Install arm-none-eabi toolchain'
       if: runner.os == 'Linux'
-      shell: bash
+      shell: pwsh
       run: |
-        mkdir -p ${{ inputs.install-path }}/arm-gnu-toolchain
-        curl -L https://developer.arm.com/-/media/Files/downloads/gnu/13.3.rel1/binrel/arm-gnu-toolchain-13.3.rel1-x86_64-arm-none-eabi.tar.xz | tar xJC ${{ inputs.install-path }}/arm-gnu-toolchain --strip-components=1
-        echo "$(realpath ${{ inputs.install-path }}/arm-gnu-toolchain/bin)" >> $GITHUB_PATH
+        New-Item -ItemType Directory -Force -Path "${{ inputs.install-path }}/arm-gnu-toolchain"
+        curl -L https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi.tar.xz | tar xJC "${{ inputs.install-path }}/arm-gnu-toolchain" --strip-components=1
+        $armPath = Resolve-Path "${{ inputs.install-path }}/arm-gnu-toolchain/bin" | Select-Object -ExpandProperty Path
+        "$armPath" | Out-File -FilePath $env:GITHUB_PATH -Append
 
     - name: 'Print sdk installation path as tree'
-      if: runner.os == 'Linux'
-      shell: bash
+      shell: pwsh
       run: |
-        echo "Pico SDK installed at: ${{ inputs.install-path }}"
-        tree -L 2 ${{ inputs.install-path }}
+        Write-Host "Pico SDK installed at: ${{ inputs.install-path }}"
+        Get-ChildItem -Path ${{ inputs.install-path }} -Recurse -Depth 2 | Select-Object FullName
 
     - name: 'Print environment variables'
-      shell: bash
+      shell: pwsh
       run: |
-        echo "PICO_SDK_PATH=$PICO_SDK_PATH"
-        echo "PATH=$PATH"
+        Write-Host "PICO_SDK_PATH=$env:PICO_SDK_PATH"
+        Write-Host "PATH=$env:PATH"
 
     - name: 'Configure and build project'
-      shell: bash
+      shell: pwsh
       run: |
-        mkdir -p ${{ inputs.build-dir }}
-        cd ${{ inputs.build-dir }}
+        New-Item -ItemType Directory -Force -Path ${{ inputs.build-dir }}
+        Set-Location ${{ inputs.build-dir }}
         cmake -DCMAKE_BUILD_TYPE=Release ${{ inputs.cmake-args }} ${{ inputs.source-dir }}
         cmake --build . --config Release
 
     - name: 'Store uf2 and elf files as artifacts'
-      if: runner.os == 'Linux'
-      shell: bash
+      shell: pwsh
       run: |
-        mkdir -p ${{ github.workspace }}/artifacts
-        find ${{ inputs.build-dir }} -type f -name '*.uf2' -o -name '*.elf' -exec cp {} ${{ github.workspace }}/artifacts/ \;
+        New-Item -ItemType Directory -Force -Path ${{ github.workspace }}/artifacts
+        Get-ChildItem -Path ${{ inputs.build-dir }} -Recurse -Include *.uf2, *.elf | Copy-Item -Destination ${{ github.workspace }}/artifacts/
