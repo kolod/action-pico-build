@@ -152,13 +152,17 @@ runs:
         Write-Host "PATH=$env:PATH"
 
     - name: 'Configure and build project'
+      if: runner.os == 'Linux'
       shell: pwsh
       run: |
-        if ("${{ runner.os }}" -eq "Windows") {
-          cmake -G Ninja -B ${{ inputs.build-dir }} -S ${{ inputs.source-dir }} -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=arm-none-eabi-gcc -DCMAKE_CXX_COMPILER=arm-none-eabi-g++ ${{ inputs.cmake-args }}
-        } else {
-          cmake -B ${{ inputs.build-dir }} -S ${{ inputs.source-dir }} -DCMAKE_BUILD_TYPE=Release ${{ inputs.cmake-args }}
-        }
+        cmake -B ${{ inputs.build-dir }} -S ${{ inputs.source-dir }} -DCMAKE_BUILD_TYPE=Release ${{ inputs.cmake-args }}
+        cmake --build ${{ inputs.build-dir }} --config Release
+    
+    - name: 'Configure and build project'
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        cmake -G Ninja -B ${{ inputs.build-dir }} -S ${{ inputs.source-dir }} -DCMAKE_BUILD_TYPE=Release ${{ inputs.cmake-args }}
         cmake --build ${{ inputs.build-dir }} --config Release
 
     - name: 'Store uf2 and elf files as artifacts'
