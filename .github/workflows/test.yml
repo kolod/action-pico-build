@@ -1,0 +1,30 @@
+name: Test Action
+
+on:
+  push:
+    branches:
+      - main
+      - 2.2.0
+  pull_request:
+    branches:
+      - main
+      - 2.2.0
+  workflow_dispatch:
+
+jobs:
+  test-action:
+    name: Test Pico Build Action
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - name: Checkout action repository
+        uses: actions/checkout@v6
+      
+      - name: Test action with default install path
+        uses: ./
+        with:
+          source-dir: 'test-project'

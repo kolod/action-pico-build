@@ -1,0 +1,228 @@
+name: 'Pico Build Action'
+description: 'GitHub Action to build Pico projects using the Pico SDK v.'
+author: 'Olexandr Kolodkin'
+
+inputs:
+  install-path:
+    description: 'Path to install the Pico SDK (default: <user home>/.pico-sdk).'
+    required: false
+    default: '${{ github.workspace }}/../../../.pico-sdk'
+
+  source-dir:
+    description: 'Path to the source directory containing the CMakeLists.txt file (default: .).'
+    required: false
+    default: '${{ github.workspace }}'
+
+  build-dir:
+    description: 'Path to the build directory (default: <source-dir>/build).'
+    required: false
+    default: 'build' 
+
+  cmake-args:
+    description: 'Additional arguments to pass to CMake (default: -DCMAKE_BUILD_TYPE=Release).'
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+
+    - name: 'Create install directory'
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path "${{ inputs.install-path }}"
+
+    - name: 'Install pre-requisites'
+      if: runner.os == 'Linux'
+      shell: pwsh
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake build-essential
+
+    - name: 'Install pre-requisites (Windows)'
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        choco install ninja -y
+
+    - name: 'Get Pico SDK'
+      shell: pwsh
+      run: |
+        Set-Location "${{ inputs.install-path }}"
+        git config --global advice.detachedHead false
+        git clone --branch=2.2.0 --depth=1 https://github.com/raspberrypi/pico-sdk.git
+        git -C pico-sdk submodule update --init --recursive
+        $sdkPath = Resolve-Path "${{ inputs.install-path }}/pico-sdk" | Select-Object -ExpandProperty Path
+        "PICO_SDK_PATH=$sdkPath" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+    - name: 'Install picotool'
+      if: runner.os == 'Linux'
+      shell: pwsh
+      run: |
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/picotool-2.2.0-a4-x86_64-lin.tar.gz | tar xz -C "${{ inputs.install-path }}"
+        $picotoolPath = Resolve-Path "${{ inputs.install-path }}/picotool" | Select-Object -ExpandProperty Path
+        "$picotoolPath" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+    - name: 'Install pico-sdk-tools'
+      if: runner.os == 'Linux'
+      shell: pwsh
+      run: |
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/pico-sdk-tools-2.2.0-x86_64-lin.tar.gz | tar xz -C "${{ inputs.install-path }}"
+        $pioasmPath = Resolve-Path "${{ inputs.install-path }}/pioasm" | Select-Object -ExpandProperty Path
+        "$pioasmPath" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+    - name: 'Install risc-v toolchain'
+      if: runner.os == 'Linux'
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path "${{ inputs.install-path }}/riscv-toolchain"
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/riscv-toolchain-15-x86_64-lin.tar.gz | tar xz -C "${{ inputs.install-path }}/riscv-toolchain"
+        $riscvPath = Resolve-Path "${{ inputs.install-path }}/riscv-toolchain/bin" | Select-Object -ExpandProperty Path
+        "$riscvPath" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+    - name: 'Install arm-none-eabi toolchain'
+      if: runner.os == 'Linux'
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path "${{ inputs.install-path }}/arm-gnu-toolchain"
+        curl -L https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-x86_64-arm-none-eabi.tar.xz | tar xJC "${{ inputs.install-path }}/arm-gnu-toolchain" --strip-components=1
+        $armPath = Resolve-Path "${{ inputs.install-path }}/arm-gnu-toolchain/bin" | Select-Object -ExpandProperty Path
+        "$armPath" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+    - name: 'Install picotool (Windows)'
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        Invoke-WebRequest -Uri "https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/picotool-2.2.0-a4-x64-win.zip" -OutFile "${{ inputs.install-path }}/picotool.zip"
+        Expand-Archive -Path "${{ inputs.install-path }}/picotool.zip" -DestinationPath "${{ inputs.install-path }}" -Force
+        Remove-Item "${{ inputs.install-path }}/picotool.zip"
+        $picotoolPath = Resolve-Path "${{ inputs.install-path }}/picotool" | Select-Object -ExpandProperty Path
+        "$picotoolPath" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+    - name: 'Install pico-sdk-tools (Windows)'
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        Invoke-WebRequest -Uri "https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/pico-sdk-tools-2.2.0-x64-win.zip" -OutFile "${{ inputs.install-path }}/pico-sdk-tools.zip"
+        Expand-Archive -Path "${{ inputs.install-path }}/pico-sdk-tools.zip" -DestinationPath "${{ inputs.install-path }}" -Force
+        Remove-Item "${{ inputs.install-path }}/pico-sdk-tools.zip"
+        $pioasmPath = Resolve-Path "${{ inputs.install-path }}/pioasm" | Select-Object -ExpandProperty Path
+        "$pioasmPath" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+    - name: 'Install risc-v toolchain (Windows)'
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path "${{ inputs.install-path }}/riscv-toolchain"
+        Invoke-WebRequest -Uri "https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/riscv-toolchain-15-x64-win.zip" -OutFile "${{ inputs.install-path }}/riscv-toolchain.zip"
+        Expand-Archive -Path "${{ inputs.install-path }}/riscv-toolchain.zip" -DestinationPath "${{ inputs.install-path }}/riscv-toolchain" -Force
+        Remove-Item "${{ inputs.install-path }}/riscv-toolchain.zip"
+        $riscvPath = Resolve-Path "${{ inputs.install-path }}/riscv-toolchain/bin" | Select-Object -ExpandProperty Path
+        "$riscvPath" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+    - name: 'Install arm-none-eabi toolchain (Windows)'
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        Invoke-WebRequest -Uri "https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-mingw-w64-i686-arm-none-eabi.zip" -OutFile "${{ inputs.install-path }}/arm-toolchain.zip"
+        Expand-Archive -Path "${{ inputs.install-path }}/arm-toolchain.zip" -DestinationPath "${{ inputs.install-path }}/arm-gnu-toolchain" -Force
+        Remove-Item "${{ inputs.install-path }}/arm-toolchain.zip" -Force
+        $armPath = Resolve-Path "${{ inputs.install-path }}/arm-gnu-toolchain/bin" | Select-Object -ExpandProperty Path
+        Write-Host "ARM toolchain path: $armPath"
+        if (Test-Path "$armPath/arm-none-eabi-gcc.exe") {
+          Write-Host "arm-none-eabi-gcc.exe found!"
+        } else {
+          Write-Error "arm-none-eabi-gcc.exe NOT found in $armPath"
+        }
+        "$armPath" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+    - name: 'Install picotool (macOS)'
+      if: runner.os == 'macOS'
+      shell: pwsh
+      run: |
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/picotool-2.2.0-a4-mac.zip -o "${{ inputs.install-path }}/picotool.zip"
+        Expand-Archive -Path "${{ inputs.install-path }}/picotool.zip" -DestinationPath "${{ inputs.install-path }}" -Force
+        Remove-Item "${{ inputs.install-path }}/picotool.zip" -Force
+        $picotoolPath = Resolve-Path "${{ inputs.install-path }}/picotool" | Select-Object -ExpandProperty Path
+        "$picotoolPath" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+    - name: 'Install pico-sdk-tools (macOS)'
+      if: runner.os == 'macOS'
+      shell: pwsh
+      run: |
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/pico-sdk-tools-2.2.0-mac.zip -o "${{ inputs.install-path }}/pico-sdk-tools.zip"
+        Expand-Archive -Path "${{ inputs.install-path }}/pico-sdk-tools.zip" -DestinationPath "${{ inputs.install-path }}" -Force
+        Remove-Item "${{ inputs.install-path }}/pico-sdk-tools.zip" -Force
+        $pioasmPath = Resolve-Path "${{ inputs.install-path }}/pioasm" | Select-Object -ExpandProperty Path
+        "$pioasmPath" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+    - name: 'Install risc-v toolchain (macOS)'
+      if: runner.os == 'macOS'
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path "${{ inputs.install-path }}/riscv-toolchain"
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/riscv-toolchain-15-mac.zip -o "${{ inputs.install-path }}/riscv-toolchain/riscv-toolchain.zip"
+        Expand-Archive -Path "${{ inputs.install-path }}/riscv-toolchain/riscv-toolchain.zip" -DestinationPath "${{ inputs.install-path }}/riscv-toolchain" -Force
+        Remove-Item "${{ inputs.install-path }}/riscv-toolchain/riscv-toolchain.zip" -Force
+        $riscvPath = Resolve-Path "${{ inputs.install-path }}/riscv-toolchain/bin" | Select-Object -ExpandProperty Path
+        "$riscvPath" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+    - name: 'Install arm-none-eabi toolchain (macOS)'
+      if: runner.os == 'macOS'
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path "${{ inputs.install-path }}/arm-gnu-toolchain"
+        $archive = "${{ inputs.install-path }}/arm-toolchain.tar.xz"
+        curl -L https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-darwin-arm64-arm-none-eabi.tar.xz -o $archive
+        tar xJf $archive -C "${{ inputs.install-path }}/arm-gnu-toolchain" --strip-components=1
+        Remove-Item $archive -Force
+        $armPath = Resolve-Path "${{ inputs.install-path }}/arm-gnu-toolchain/bin" | Select-Object -ExpandProperty Path
+        "$armPath" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+    - name: 'Print sdk installation path as tree'
+      shell: pwsh
+      run: |
+        Write-Host "Pico SDK installed at: ${{ inputs.install-path }}"
+        Write-Host "`nDirectory structure:"
+        Get-ChildItem -Path "${{ inputs.install-path }}" -Recurse -Depth 3 | Select-Object FullName
+        Write-Host "`nChecking for arm-none-eabi-gcc:"
+        Get-ChildItem -Path "${{ inputs.install-path }}" -Recurse -Filter "arm-none-eabi-gcc*" | Select-Object FullName
+
+    - name: 'Print environment variables'
+      shell: pwsh
+      run: |
+        Write-Host "PICO_SDK_PATH=$env:PICO_SDK_PATH"
+        Write-Host "PATH=$env:PATH"
+
+    - name: 'Configure and build project'
+      if: runner.os == 'Linux'
+      shell: pwsh
+      run: |
+        cmake -B ${{ inputs.build-dir }} -S ${{ inputs.source-dir }} -DCMAKE_BUILD_TYPE=Release ${{ inputs.cmake-args }}
+        cmake --build ${{ inputs.build-dir }} --config Release
+    
+    - name: 'Configure and build project'
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        cmake -G Ninja -B ${{ inputs.build-dir }} -S ${{ inputs.source-dir }} -DCMAKE_BUILD_TYPE=Release ${{ inputs.cmake-args }}
+        cmake --build ${{ inputs.build-dir }} --config Release
+    
+    - name: 'Configure and build project'
+      if: runner.os == 'macOS'
+      shell: pwsh
+      run: |
+        cmake -B ${{ inputs.build-dir }} -S ${{ inputs.source-dir }} -DCMAKE_BUILD_TYPE=Release ${{ inputs.cmake-args }}
+        cmake --build ${{ inputs.build-dir }} --config Release
+
+    - name: 'Store uf2 and elf files as artifacts'
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path ${{ github.workspace }}/artifacts
+        Get-ChildItem -Path ${{ inputs.build-dir }} -Recurse -Include *.uf2, *.elf | Copy-Item -Destination ${{ github.workspace }}/artifacts/
+
+    - name: 'Upload artifacts'
+      uses: actions/upload-artifact@v4
+      with:
+        name: pico-binaries-${{ runner.os }}
+        path: ${{ github.workspace }}/artifacts/
