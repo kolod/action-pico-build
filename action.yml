@@ -136,6 +136,40 @@ runs:
         }
         "$armPath" | Out-File -FilePath $env:GITHUB_PATH -Append
 
+    - name: 'Install picotool (macOS)'
+      if: runner.os == 'macOS'
+      shell: pwsh
+      run: |
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/picotool-2.2.0-a4-x86_64-mac.tar.gz | tar xz -C "${{ inputs.install-path }}"
+        $picotoolPath = Resolve-Path "${{ inputs.install-path }}/picotool" | Select-Object -ExpandProperty Path
+        "$picotoolPath" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+    - name: 'Install pico-sdk-tools (macOS)'
+      if: runner.os == 'macOS'
+      shell: pwsh
+      run: |
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/pico-sdk-tools-2.2.0-x86_64-mac.tar.gz | tar xz -C "${{ inputs.install-path }}"
+        $pioasmPath = Resolve-Path "${{ inputs.install-path }}/pioasm" | Select-Object -ExpandProperty Path
+        "$pioasmPath" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+    - name: 'Install risc-v toolchain (macOS)'
+      if: runner.os == 'macOS'
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path "${{ inputs.install-path }}/riscv-toolchain"
+        curl -L https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.2.0-3/riscv-toolchain-15-x86_64-mac.tar.gz | tar xz -C "${{ inputs.install-path }}/riscv-toolchain"
+        $riscvPath = Resolve-Path "${{ inputs.install-path }}/riscv-toolchain/bin" | Select-Object -ExpandProperty Path
+        "$riscvPath" | Out-File -FilePath $env:GITHUB_PATH -Append
+
+    - name: 'Install arm-none-eabi toolchain (macOS)'
+      if: runner.os == 'macOS'
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force -Path "${{ inputs.install-path }}/arm-gnu-toolchain"
+        curl -L https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-darwin-x86_64-arm-none-eabi.tar.xz | tar xJC "${{ inputs.install-path }}/arm-gnu-toolchain" --strip-components=1
+        $armPath = Resolve-Path "${{ inputs.install-path }}/arm-gnu-toolchain/bin" | Select-Object -ExpandProperty Path
+        "$armPath" | Out-File -FilePath $env:GITHUB_PATH -Append
+
     - name: 'Print sdk installation path as tree'
       shell: pwsh
       run: |
@@ -163,6 +197,13 @@ runs:
       shell: pwsh
       run: |
         cmake -G Ninja -B ${{ inputs.build-dir }} -S ${{ inputs.source-dir }} -DCMAKE_BUILD_TYPE=Release ${{ inputs.cmake-args }}
+        cmake --build ${{ inputs.build-dir }} --config Release
+    
+    - name: 'Configure and build project'
+      if: runner.os == 'macOS'
+      shell: pwsh
+      run: |
+        cmake -B ${{ inputs.build-dir }} -S ${{ inputs.source-dir }} -DCMAKE_BUILD_TYPE=Release ${{ inputs.cmake-args }}
         cmake --build ${{ inputs.build-dir }} --config Release
 
     - name: 'Store uf2 and elf files as artifacts'
