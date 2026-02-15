@@ -118,20 +118,29 @@ runs:
       if: runner.os == 'Windows'
       shell: pwsh
       run: |
-        New-Item -ItemType Directory -Force -Path "${{ inputs.install-path }}/arm-gnu-toolchain"
         Invoke-WebRequest -Uri "https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-mingw-w64-i686-arm-none-eabi.zip" -OutFile "${{ inputs.install-path }}/arm-toolchain.zip"
-        Expand-Archive -Path "${{ inputs.install-path }}/arm-toolchain.zip" -DestinationPath "${{ inputs.install-path }}/arm-gnu-toolchain-temp" -Force
-        Get-ChildItem "${{ inputs.install-path }}/arm-gnu-toolchain-temp" | Select-Object -First 1 | Get-ChildItem | Move-Item -Destination "${{ inputs.install-path }}/arm-gnu-toolchain"
-        Remove-Item "${{ inputs.install-path }}/arm-toolchain.zip"
-        Remove-Item "${{ inputs.install-path }}/arm-gnu-toolchain-temp" -Recurse
+        Expand-Archive -Path "${{ inputs.install-path }}/arm-toolchain.zip" -DestinationPath "${{ inputs.install-path }}/arm-extract" -Force
+        $extractedFolder = Get-ChildItem "${{ inputs.install-path }}/arm-extract" -Directory | Select-Object -First 1
+        Move-Item -Path $extractedFolder.FullName -Destination "${{ inputs.install-path }}/arm-gnu-toolchain" -Force
+        Remove-Item "${{ inputs.install-path }}/arm-toolchain.zip" -Force
+        Remove-Item "${{ inputs.install-path }}/arm-extract" -Recurse -Force
         $armPath = Resolve-Path "${{ inputs.install-path }}/arm-gnu-toolchain/bin" | Select-Object -ExpandProperty Path
+        Write-Host "ARM toolchain path: $armPath"
+        if (Test-Path "$armPath/arm-none-eabi-gcc.exe") {
+          Write-Host "arm-none-eabi-gcc.exe found!"
+        } else {
+          Write-Error "arm-none-eabi-gcc.exe NOT found in $armPath"
+        }
         "$armPath" | Out-File -FilePath $env:GITHUB_PATH -Append
 
     - name: 'Print sdk installation path as tree'
       shell: pwsh
       run: |
         Write-Host "Pico SDK installed at: ${{ inputs.install-path }}"
-        Get-ChildItem -Path ${{ inputs.install-path }} -Recurse -Depth 2 | Select-Object FullName
+        Write-Host "`nDirectory structure:"
+        Get-ChildItem -Path "${{ inputs.install-path }}" -Recurse -Depth 3 | Select-Object FullName
+        Write-Host "`nChecking for arm-none-eabi-gcc:"
+        Get-ChildItem -Path "${{ inputs.install-path }}" -Recurse -Filter "arm-none-eabi-gcc*" | Select-Object FullName
 
     - name: 'Print environment variables'
       shell: pwsh
