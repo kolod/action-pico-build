@@ -14,7 +14,11 @@ on:
 jobs:
   test-action:
     name: Test Pico Build Action
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     
     steps:
       - name: Checkout action repository
@@ -24,4 +28,3 @@ jobs:
         uses: ./
         with:
           source-dir: 'test-project'
-  
