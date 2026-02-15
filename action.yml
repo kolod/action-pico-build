@@ -119,20 +119,10 @@ runs:
       shell: pwsh
       run: |
         Invoke-WebRequest -Uri "https://developer.arm.com/-/media/Files/downloads/gnu/14.3.rel1/binrel/arm-gnu-toolchain-14.3.rel1-mingw-w64-i686-arm-none-eabi.zip" -OutFile "${{ inputs.install-path }}/arm-toolchain.zip"
-        Expand-Archive -Path "${{ inputs.install-path }}/arm-toolchain.zip" -DestinationPath "${{ inputs.install-path }}/arm-extract" -Force
-        Write-Host "Contents of arm-extract:"
-        Get-ChildItem "${{ inputs.install-path }}/arm-extract" -Recurse -Depth 2 | Select-Object FullName
-        $extractedFolder = Get-ChildItem "${{ inputs.install-path }}/arm-extract" -Directory | Select-Object -First 1
-        Write-Host "Moving folder: $($extractedFolder.FullName)"
-        Move-Item -Path $extractedFolder.FullName -Destination "${{ inputs.install-path }}/arm-gnu-toolchain" -Force
-        Write-Host "Contents after move:"
-        Get-ChildItem "${{ inputs.install-path }}/arm-gnu-toolchain" -Recurse -Depth 2 | Select-Object FullName
+        Expand-Archive -Path "${{ inputs.install-path }}/arm-toolchain.zip" -DestinationPath "${{ inputs.install-path }}/arm-gnu-toolchain" -Force
         Remove-Item "${{ inputs.install-path }}/arm-toolchain.zip" -Force
-        Remove-Item "${{ inputs.install-path }}/arm-extract" -Recurse -Force
         $armPath = Resolve-Path "${{ inputs.install-path }}/arm-gnu-toolchain/bin" | Select-Object -ExpandProperty Path
         Write-Host "ARM toolchain path: $armPath"
-        Write-Host "Contents of bin directory:"
-        Get-ChildItem "$armPath" | Select-Object Name, Length
         if (Test-Path "$armPath/arm-none-eabi-gcc.exe") {
           Write-Host "arm-none-eabi-gcc.exe found!"
         } else {
