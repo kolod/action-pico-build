@@ -39,6 +39,12 @@ runs:
         sudo apt-get update
         sudo apt-get install -y cmake build-essential
 
+    - name: 'Install pre-requisites (Windows)'
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        choco install ninja -y
+
     - name: 'Get Pico SDK'
       shell: pwsh
       run: |
@@ -148,7 +154,11 @@ runs:
     - name: 'Configure and build project'
       shell: pwsh
       run: |
-        cmake -B ${{ inputs.build-dir }} -S ${{ inputs.source-dir }} -DCMAKE_BUILD_TYPE=Release ${{ inputs.cmake-args }}
+        if ("${{ runner.os }}" -eq "Windows") {
+          cmake -G Ninja -B ${{ inputs.build-dir }} -S ${{ inputs.source-dir }} -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=arm-none-eabi-gcc -DCMAKE_CXX_COMPILER=arm-none-eabi-g++ ${{ inputs.cmake-args }}
+        } else {
+          cmake -B ${{ inputs.build-dir }} -S ${{ inputs.source-dir }} -DCMAKE_BUILD_TYPE=Release ${{ inputs.cmake-args }}
+        }
         cmake --build ${{ inputs.build-dir }} --config Release
 
     - name: 'Store uf2 and elf files as artifacts'
